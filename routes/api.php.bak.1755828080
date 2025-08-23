@@ -1,0 +1,6 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\NfcController;
+
+Route::post('/nfc-scan', [NfcController::class, 'store']);
