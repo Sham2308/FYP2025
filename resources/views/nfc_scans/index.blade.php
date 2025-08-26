@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>NFC Scans</title>
+    <title>NFC Scannner</title>
     <style>
         body { margin:0; font-family: system-ui, Arial, sans-serif; background:#ffffff; color:#111; }
         h2 { text-align:center; margin:24px 0 8px; }
