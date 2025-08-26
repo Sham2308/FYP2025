@@ -4,37 +4,63 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\NfcScan;
+use Illuminate\Validation\Rule;
 
 class NfcController extends Controller
 {
+    /**
+     * Save a scan coming from the device (with UID).
+     */
     public function store(Request $request)
     {
-        $scan = NfcScan::create([
-            'uid'        => $request->uid,
-            'student_id' => $request->student_id,
-            'user_name'  => $request->user_name,
-            'item_id'    => $request->item_id,
-            'item_name'  => $request->item_name,
-            'status'     => $request->status,
+        $data = $request->validate([
+            'uid'           => ['nullable','string','max:191'],
+            'asset_id'      => ['nullable','string','max:191'],
+            'name'          => ['nullable','string','max:191'],
+            'detail'        => ['nullable','string'],
+            'accessories'   => ['nullable','string'],
+            'type_id'       => ['nullable','string','max:191'],
+            'serial_no'     => ['nullable','string','max:191'],
+            'location_id'   => ['nullable','string','max:191'],
+            'purchase_date' => ['nullable','date'],
+            'remarks'       => ['nullable','string'],
+            'status'        => ['nullable', Rule::in(['good','bad'])],
         ]);
+
+        $scan = NfcScan::create($data);
 
         return response()->json(['status' => 'success', 'data' => $scan], 201);
     }
 
+    /**
+     * Save a manual registration (without UID).
+     */
     public function register(Request $request)
     {
-        $scan = NfcScan::create([
-            'uid'        => null,
-            'student_id' => $request->student_id,
-            'user_name'  => $request->user_name,
-            'item_id'    => $request->item_id,
-            'item_name'  => $request->item_name,
-            'status'     => $request->status,
+        $data = $request->validate([
+            'asset_id'      => ['nullable','string','max:191'],
+            'name'          => ['nullable','string','max:191'],
+            'detail'        => ['nullable','string'],
+            'accessories'   => ['nullable','string'],
+            'type_id'       => ['nullable','string','max:191'],
+            'serial_no'     => ['nullable','string','max:191'],
+            'location_id'   => ['nullable','string','max:191'],
+            'purchase_date' => ['nullable','date'],
+            'remarks'       => ['nullable','string'],
+            'status'        => ['nullable', Rule::in(['good','bad'])],
         ]);
+
+        // Ensure uid is NULL for manual register
+        $data['uid'] = null;
+
+        $scan = NfcScan::create($data);
 
         return response()->json(['status' => 'registered', 'data' => $scan], 201);
     }
 
+    /**
+     * Delete by UID (all rows with that UID).
+     */
     public function delete($uid)
     {
         $deleted = NfcScan::where('uid', $uid)->delete();
@@ -44,4 +70,3 @@ class NfcController extends Controller
             : response()->json(['status' => 'not_found', 'uid' => $uid], 404);
     }
 }
-

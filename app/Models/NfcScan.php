@@ -7,11 +7,20 @@ use Illuminate\Database\Eloquent\Model;
 class NfcScan extends Model
 {
     protected $fillable = [
-        'uid',         // NFC card UID
-        'student_id',  // Student ID (e.g. 23FTTXXXX)
-        'user_name',
-        'item_id',
-        'item_name',
-        'status',      // 'good' | 'bad'
+        'uid',
+        'asset_id',
+        'name',
+        'detail',
+        'accessories',
+        'type_id',
+        'serial_no',
+        'location_id',
+        'purchase_date',
+        'remarks',
+        'status',
+    ];
+
+    protected $casts = [
+        'purchase_date' => 'date',
     ];
 }

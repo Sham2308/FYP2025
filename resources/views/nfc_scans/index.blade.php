@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>NFC Scannner</title>
+    <title>NFC Scan</title>
     <style>
         body { margin:0; font-family: system-ui, Arial, sans-serif; background:#ffffff; color:#111; }
         h2 { text-align:center; margin:24px 0 8px; }
         .links { text-align:center; margin-bottom:12px; }
         .links a { color:#2563eb; text-decoration:none; font-weight:600; margin:0 6px; }
-        .controls { max-width: 1000px; margin: 0 auto 18px; padding: 16px; border:1px solid #e5e7eb; border-radius:12px; background:#f9fafb; }
+        .controls { max-width: 1100px; margin: 0 auto 18px; padding: 16px; border:1px solid #e5e7eb; border-radius:12px; background:#f9fafb; }
         .section-title { font-weight:600; margin-bottom:10px; text-align:center; }
         .row { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-bottom:12px; }
         .row input, .row select { padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; min-width:160px; }
@@ -15,7 +15,7 @@
         .btn-register { background:#16a34a; color:white; }
         .btn-scan { background:#2563eb; color:white; }
         .btn-save { background:#9333ea; color:white; }
-        .result { max-width:1000px; margin:0 auto 18px; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; font-family: monospace; color:#111827; white-space:pre-wrap; }
+        .result { max-width:1100px; margin:0 auto 18px; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; font-family: monospace; color:#111827; white-space:pre-wrap; }
         table { border-collapse: collapse; width: 95%; margin: 12px auto 40px; }
         th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
         th { background: #f5f5f5; }
@@ -39,10 +39,15 @@
     <div class="controls">
         <div class="section-title">Manual Register</div>
         <div class="row">
-            <input id="student_id" type="text" placeholder="Student ID (e.g. 23FTT1234)" />
-            <input id="user_name" type="text" placeholder="User name" />
-            <input id="item_id" type="text" placeholder="Item ID (e.g. CAM001)" />
-            <input id="item_name" type="text" placeholder="Item name" />
+            <input id="asset_id" type="text" placeholder="Asset ID (e.g. CAM001)" />
+            <input id="name" type="text" placeholder="Name" />
+            <input id="detail" type="text" placeholder="Detail" />
+            <input id="accessories" type="text" placeholder="Accessories" />
+            <input id="type_id" type="text" placeholder="Type ID" />
+            <input id="serial_no" type="text" placeholder="Serial No" />
+            <input id="location_id" type="text" placeholder="Location ID" />
+            <input id="purchase_date" type="date" />
+            <input id="remarks" type="text" placeholder="Remarks" />
             <select id="status">
                 <option value="">Status…</option>
                 <option value="good">Good</option>
@@ -65,10 +70,15 @@
                 <input id="scan_uid" type="text" placeholder="UID (from card)" readonly />
             </div>
             <div class="row">
-                <input id="scan_student_id" type="text" placeholder="Student ID (e.g. 23FTT1234)" />
-                <input id="scan_user_name" type="text" placeholder="User name" />
-                <input id="scan_item_id" type="text" placeholder="Item ID" />
-                <input id="scan_item_name" type="text" placeholder="Item name" />
+                <input id="scan_asset_id" type="text" placeholder="Asset ID" />
+                <input id="scan_name" type="text" placeholder="Name" />
+                <input id="scan_detail" type="text" placeholder="Detail" />
+                <input id="scan_accessories" type="text" placeholder="Accessories" />
+                <input id="scan_type_id" type="text" placeholder="Type ID" />
+                <input id="scan_serial_no" type="text" placeholder="Serial No" />
+                <input id="scan_location_id" type="text" placeholder="Location ID" />
+                <input id="scan_purchase_date" type="date" />
+                <input id="scan_remarks" type="text" placeholder="Remarks" />
                 <select id="scan_status">
                     <option value="">Status…</option>
                     <option value="good">Good</option>
@@ -87,26 +97,31 @@
     <table>
         <thead>
             <tr>
-                <th>ID</th>
                 <th>UID</th>
-                <th>Student ID</th>
-                <th>User</th>
-                <th>Item ID</th>
-                <th>Item</th>
+                <th>Asset ID</th>
+                <th>Name</th>
+                <th>Detail</th>
+                <th>Accessories</th>
+                <th>Type ID</th>
+                <th>Serial No</th>
+                <th>Location ID</th>
                 <th>Status</th>
-                <th>Scanned At</th>
+                <th>Purchase Date</th>
+                <th>Remarks</th>
                 <th>Action</th>
             </tr>
         </thead>
         <tbody>
             @foreach($scans as $scan)
             <tr id="row-{{ $scan->id }}">
-                <td>{{ $scan->id }}</td>
-                <td>{{ $scan->uid ?? 'N/A' }}</td>
-                <td>{{ $scan->student_id ?? 'N/A' }}</td>
-                <td>{{ $scan->user_name ?? 'N/A' }}</td>
-                <td>{{ $scan->item_id ?? 'N/A' }}</td>
-                <td>{{ $scan->item_name ?? 'N/A' }}</td>
+                <td>{{ $scan->uid ?? '—' }}</td>
+                <td>{{ $scan->asset_id ?? '—' }}</td>
+                <td>{{ $scan->name ?? '—' }}</td>
+                <td>{{ $scan->detail ?? '—' }}</td>
+                <td>{{ $scan->accessories ?? '—' }}</td>
+                <td>{{ $scan->type_id ?? '—' }}</td>
+                <td>{{ $scan->serial_no ?? '—' }}</td>
+                <td>{{ $scan->location_id ?? '—' }}</td>
                 <td>
                     @php $st = $scan->status; @endphp
                     @if($st === 'good')
@@ -114,10 +129,11 @@
                     @elseif($st === 'bad')
                         <span class="badge badge-bad">bad</span>
                     @else
-                        <span class="badge badge-na">N/A</span>
+                        <span class="badge badge-na">{{ $st ?? 'N/A' }}</span>
                     @endif
                 </td>
-                <td>{{ $scan->created_at }}</td>
+                <td>{{ $scan->purchase_date ? $scan->purchase_date->format('Y-m-d') : '—' }}</td>
+                <td>{{ $scan->remarks ?? '—' }}</td>
                 <td>
                     <button class="delete-btn" onclick="deleteRecord({{ $scan->id }}, '{{ $scan->uid }}')">Delete</button>
                 </td>
@@ -133,24 +149,30 @@ function val(id, fallback = "") {
     return v.length ? v : fallback;
 }
 
-// Manual register
 async function registerManual() {
-    const student_id = val("student_id");
-    const user_name  = val("user_name");
-    const item_id    = val("item_id");
-    const item_name  = val("item_name");
-    const status     = val("status");
+    const payload = {
+        asset_id: val("asset_id"),
+        name: val("name"),
+        detail: val("detail"),
+        accessories: val("accessories"),
+        type_id: val("type_id"),
+        serial_no: val("serial_no"),
+        location_id: val("location_id"),
+        purchase_date: val("purchase_date"),
+        remarks: val("remarks"),
+        status: val("status"),
+    };
 
     const res = await fetch("/api/nfc-register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_id, user_name, item_id, item_name, status })
+        body: JSON.stringify(payload)
     });
+
     document.getElementById("result").innerText = await res.text();
     location.reload();
 }
 
-// Start device scan
 async function scanDevice() {
     const res = await fetch("/api/scan-request", { method: "POST" });
     const data = await res.json();
@@ -162,7 +184,6 @@ async function scanDevice() {
     const interval = setInterval(async () => {
         const r = await fetch("/api/scan-result/" + reqId);
         const j = await r.json();
-        console.log("ScanResult", j);
         if (j.status === "done") {
             clearInterval(interval);
             document.getElementById("result").innerText =
@@ -175,25 +196,31 @@ async function scanDevice() {
     }, 2000);
 }
 
-// Save scanned data
 async function saveScan() {
-    const uid        = val("scan_uid");
-    const student_id = val("scan_student_id");
-    const user_name  = val("scan_user_name");
-    const item_id    = val("scan_item_id");
-    const item_name  = val("scan_item_name");
-    const status     = val("scan_status");
+    const payload = {
+        uid: val("scan_uid"),
+        asset_id: val("scan_asset_id"),
+        name: val("scan_name"),
+        detail: val("scan_detail"),
+        accessories: val("scan_accessories"),
+        type_id: val("scan_type_id"),
+        serial_no: val("scan_serial_no"),
+        location_id: val("scan_location_id"),
+        purchase_date: val("scan_purchase_date"),
+        remarks: val("scan_remarks"),
+        status: val("scan_status"),
+    };
 
     const res = await fetch("/api/nfc-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid, student_id, user_name, item_id, item_name, status })
+        body: JSON.stringify(payload)
     });
+
     document.getElementById("result").innerText = await res.text();
     location.reload();
 }
 
-// Delete by UID
 async function deleteRecord(id, uid) {
     if (!uid) { alert("No UID on this row."); return; }
     if (!confirm("Delete all records for UID " + uid + "?")) return;
