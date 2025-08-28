@@ -9,20 +9,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('nfc_scans', function (Blueprint $table) {
-            $table->enum('status', [
-                'available',
-                'borrowed',
-                'under_repair',
-                'stolen',
-                'missing_lost'
-            ])->default('available')->after('item_name');
+            // Make uid NOT NULL and UNIQUE
+            $table->string('uid', 255)->nullable(false)->unique()->change();
         });
     }
 
     public function down(): void
     {
         Schema::table('nfc_scans', function (Blueprint $table) {
-            $table->dropColumn('status');
+            // Revert back if needed
+            $table->string('uid', 255)->nullable()->dropUnique()->change();
         });
     }
 };
