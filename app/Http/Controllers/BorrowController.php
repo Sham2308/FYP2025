@@ -10,23 +10,22 @@ use Illuminate\Support\Facades\Log;
 
 class BorrowController extends Controller
 {
-    /**
-     * Show borrow form + recent borrows
-     */
     public function index()
     {
         $borrows = Borrow::with('item')->latest()->take(10)->get();
-        return view('borrow.index', compact('borrows'));
+        $items = Item::orderBy('asset_id')->get();
+        return view('borrow.index', compact('borrows', 'items'));
     }
 
-    /**
-     * Store a new borrow record + mirror to Google Sheets via Apps Script (no extra library)
-     */
     public function store(Request $request)
     {
         $request->validate([
-            'uid' => 'required|string',
-            'user_id' => 'required|string', // accept staff/student IDs
+            'uid'           => 'required|string',
+            'user_id'       => 'required|string',
+            'borrower_name' => 'nullable|string|max:191',
+            'borrow_date'   => 'nullable|date',
+            'due_date'      => 'nullable|date',
+            'remarks'       => 'nullable|string',
         ]);
 
         $item = Item::where('uid', $request->uid)->first();
@@ -40,30 +39,36 @@ class BorrowController extends Controller
         }
 
         $borrow = Borrow::create([
-            'uid' => $request->uid,
-            'user_id' => $request->user_id,
-            'borrowed_at' => now(),
+            'uid'           => $request->uid,
+            'user_id'       => $request->user_id,
+            'borrower_name' => $request->borrower_name,
+            'borrow_date'   => $request->borrow_date ?? now()->toDateString(),
+            'due_date'      => $request->due_date,
+            'remarks'       => $request->remarks,
+            'borrowed_at'   => now(),
         ]);
 
         $item->update(['status' => 'borrowed']);
 
-        // Mirror to Google Sheets (Apps Script Web App)
         $this->mirrorToSheet([
-            'type'       => 'borrow',
-            'borrow_id'  => $borrow->id,
-            'user_id'    => $borrow->user_id,
-            'uid'        => $borrow->uid,
-            'asset_id'   => optional($item)->asset_id,
-            'serial_no'  => optional($item)->serial_no,
-            'action'     => 'borrowed',
+            'type'          => 'borrow',
+            'borrow_id'     => $borrow->id,
+            'user_id'       => $borrow->user_id,
+            'borrower_name' => $borrow->borrower_name,
+            'uid'           => $borrow->uid,
+            'asset_id'      => optional($item)->asset_id,
+            'name'          => optional($item)->name,
+            'borrow_date'   => optional($borrow->borrow_date)->format('Y-m-d'),
+            'return_date'   => optional($borrow->due_date)->format('Y-m-d'),
+            'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
+            'returned_at'   => '',
+            'status'        => strtolower('borrowed'),  // ✅ always lowercase
+            'remarks'       => $borrow->remarks,
         ]);
 
         return redirect()->back()->with('success', 'Borrow saved successfully!');
     }
 
-    /**
-     * Return a borrowed item + mirror to Google Sheets via Apps Script (no extra library)
-     */
     public function returnItem(Request $request, $uid)
     {
         $item = Item::where('uid', $uid)->first();
@@ -78,39 +83,77 @@ class BorrowController extends Controller
             ->first();
 
         if (!$borrow) {
-            return redirect()->back()->with('error', 'No active borrow record found for this item.');
+            return redirect()->back()->with('error', 'No active borrow record found.');
         }
 
-        $borrow->update(['returned_at' => now()]);
+        $borrow->update([
+            'returned_at' => now(),
+            'return_date' => now()->toDateString(),
+        ]);
         $item->update(['status' => 'available']);
 
-        // Mirror to Google Sheets (Apps Script Web App)
         $this->mirrorToSheet([
-            'type'       => 'borrow',
-            'borrow_id'  => $borrow->id,
-            'user_id'    => $borrow->user_id,
-            'uid'        => $borrow->uid,
-            'asset_id'   => optional($item)->asset_id,
-            'serial_no'  => optional($item)->serial_no,
-            'action'     => 'returned',
+            'type'          => 'borrow',
+            'borrow_id'     => $borrow->id,
+            'user_id'       => $borrow->user_id,
+            'borrower_name' => $borrow->borrower_name ?? '',
+            'uid'           => $borrow->uid,
+            'asset_id'      => optional($item)->asset_id,
+            'name'          => optional($item)->name,
+            'borrow_date'   => optional($borrow->borrow_date)->format('Y-m-d'),
+            'return_date'   => optional($borrow->return_date)->format('Y-m-d'),
+            'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
+            'returned_at'   => optional($borrow->returned_at)->format('Y-m-d'),
+            'status'        => strtolower($item->status), // ✅ always lowercase
+            'remarks'       => $borrow->remarks ?? '',
         ]);
 
         return redirect()->back()->with('success', 'Item returned successfully!');
     }
 
-    /**
-     * Send a row to Google Sheets via Apps Script Web App.
-     * Uses:
-     *  - GOOGLE_SHEET_WEBAPP_URL
-     *  - GOOGLE_SHEET_WEBAPP_SECRET
-     */
+    public function destroy($id)
+    {
+        $borrow = Borrow::findOrFail($id);
+        $item = Item::where('uid', $borrow->uid)->first();
+
+        if ($item) {
+            $item->update(['status' => 'available']);
+        }
+
+        $this->mirrorToSheet([
+            'type'       => 'delete',
+            'borrow_id'  => $borrow->id,
+            'uid'        => $borrow->uid,
+        ]);
+
+        $borrow->delete();
+
+        return redirect()->back()->with('success', 'Borrow record deleted successfully!');
+    }
+
+    public function fetchItem($uid)
+    {
+        $item = Item::where('uid', $uid)->first();
+
+        if (!$item) {
+            return response()->json(['error' => 'Item not found'], 404);
+        }
+
+        return response()->json([
+            'asset_id'      => $item->asset_id,
+            'name'          => $item->name,
+            'status'        => $item->status,
+            'purchase_date' => $item->purchase_date,
+        ]);
+    }
+
     protected function mirrorToSheet(array $payload): void
     {
-        $url = env('GOOGLE_SHEET_WEBAPP_URL');
-        $secret = env('GOOGLE_SHEET_WEBAPP_SECRET');
+        $url = config('services.google.webapp_url');
+        $secret = config('services.google.secret');
 
         if (!$url || !$secret) {
-            Log::warning('Sheet mirror skipped: missing GOOGLE_SHEET_WEBAPP_URL or GOOGLE_SHEET_WEBAPP_SECRET');
+            Log::warning('Sheet mirror skipped: missing credentials');
             return;
         }
 
@@ -119,7 +162,6 @@ class BorrowController extends Controller
                 'secret' => $secret,
             ]));
         } catch (\Throwable $e) {
-            // Don’t block the user flow if Sheets fails—just log it.
             Log::warning('Sheet mirror failed: ' . $e->getMessage());
         }
     }

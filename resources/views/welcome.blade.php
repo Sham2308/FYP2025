@@ -22,9 +22,9 @@
   <main class="wrap">
     <section class="card">
       <h1>TapNBorrow</h1>
-      <p>NFC scans powered by Laravel. View recent scans or start scanning with your device.</p>
+      <p>NFC inventory system powered by Laravel. Manage your assets or start scanning with your device.</p>
       <div class="actions">
-        <a class="button" href="{{ route('nfc_scans.index') }}">View NFC Scans</a>
+        <a class="button" href="{{ route('nfc.inventory') }}">Go to Inventory</a>
       </div>
     </section>
   </main>

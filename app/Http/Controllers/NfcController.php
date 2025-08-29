@@ -6,11 +6,13 @@ use Illuminate\Http\Request;
 use App\Models\NfcScan;
 use Illuminate\Validation\Rule;
 use Illuminate\Database\QueryException;
+use App\Services\GoogleSheetService;
+use Carbon\Carbon;
 
 class NfcController extends Controller
 {
     // Device save (UID comes from scanner)
-    public function store(Request $request)
+    public function store(Request $request, GoogleSheetService $sheetService)
     {
         $data = $request->validate([
             'uid'           => ['required','string','max:191'],
@@ -20,17 +22,43 @@ class NfcController extends Controller
             'accessories'   => ['nullable','string'],
             'type_id'       => ['nullable','string','max:191'],
             'serial_no'     => ['nullable','string','max:191'],
-            'location_id'   => ['nullable','string','max:191'],
             'purchase_date' => ['nullable','date'],
             'remarks'       => ['nullable','string'],
-            'status'        => ['nullable', Rule::in(['good','bad'])],
+            'status'        => ['nullable','string'],
         ]);
+
+        // ✅ Normalize Status
+        $data['status'] = $this->normalizeStatus($data['status']);
+
+        // ✅ Format purchase_date (dd/mm/yyyy for Sheets)
+        if (!empty($data['purchase_date'])) {
+            try {
+                $dt = Carbon::parse($data['purchase_date']);
+                $data['purchase_date'] = $dt->format('d/m/Y');
+            } catch (\Exception $e) {
+                $data['purchase_date'] = null;
+            }
+        }
 
         try {
             $scan = NfcScan::create($data);
+
+            // ✅ Also push to Google Sheets
+            $sheetService->appendRow([
+                $data['uid'] ?? '',
+                $data['asset_id'] ?? '',
+                $data['name'] ?? '',
+                $data['detail'] ?? '',
+                $data['accessories'] ?? '',
+                $data['type_id'] ?? '',
+                $data['serial_no'] ?? '',
+                $data['status'] ?? '',
+                $data['purchase_date'] ?? '',
+                $data['remarks'] ?? '',
+            ]);
+
             return response()->json(['status' => 'success', 'data' => $scan], 201);
         } catch (QueryException $e) {
-            // Handle duplicate UID nicely (unique constraint)
             if ($e->getCode() === '23000') {
                 return response()->json(['status' => 'conflict', 'message' => 'UID already exists'], 409);
             }
@@ -38,8 +66,8 @@ class NfcController extends Controller
         }
     }
 
-    // Manual register (now requires UID typed by user)
-    public function register(Request $request)
+    // Manual register
+    public function register(Request $request, GoogleSheetService $sheetService)
     {
         $data = $request->validate([
             'uid'           => ['required','string','max:191'],
@@ -49,14 +77,41 @@ class NfcController extends Controller
             'accessories'   => ['nullable','string'],
             'type_id'       => ['nullable','string','max:191'],
             'serial_no'     => ['nullable','string','max:191'],
-            'location_id'   => ['nullable','string','max:191'],
             'purchase_date' => ['nullable','date'],
             'remarks'       => ['nullable','string'],
-            'status'        => ['nullable', Rule::in(['good','bad'])],
+            'status'        => ['nullable','string'],
         ]);
+
+        // ✅ Normalize Status
+        $data['status'] = $this->normalizeStatus($data['status']);
+
+        // ✅ Format purchase_date
+        if (!empty($data['purchase_date'])) {
+            try {
+                $dt = Carbon::parse($data['purchase_date']);
+                $data['purchase_date'] = $dt->format('d/m/Y');
+            } catch (\Exception $e) {
+                $data['purchase_date'] = null;
+            }
+        }
 
         try {
             $scan = NfcScan::create($data);
+
+            // ✅ Push to Google Sheets
+            $sheetService->appendRow([
+                $data['uid'] ?? '',
+                $data['asset_id'] ?? '',
+                $data['name'] ?? '',
+                $data['detail'] ?? '',
+                $data['accessories'] ?? '',
+                $data['type_id'] ?? '',
+                $data['serial_no'] ?? '',
+                $data['status'] ?? '',
+                $data['purchase_date'] ?? '',
+                $data['remarks'] ?? '',
+            ]);
+
             return response()->json(['status' => 'registered', 'data' => $scan], 201);
         } catch (QueryException $e) {
             if ($e->getCode() === '23000') {
@@ -73,5 +128,18 @@ class NfcController extends Controller
         return $deleted > 0
             ? response()->json(['status' => 'deleted', 'uid' => $uid, 'rows' => $deleted], 200)
             : response()->json(['status' => 'not_found', 'uid' => $uid], 404);
+    }
+
+    private function normalizeStatus($status)
+    {
+        if (!$status) return null;
+        $map = [
+            'available'     => 'Available',
+            'borrowed'      => 'Borrowed',
+            'under_repair'  => 'Under Repair',
+            'stolen'        => 'Stolen',
+            'missing_lost'  => 'Missing/Lost',
+        ];
+        return $map[strtolower($status)] ?? ucfirst($status);
     }
 }

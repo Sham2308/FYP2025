@@ -18,7 +18,7 @@ rm -f bootstrap/cache/*.php
 
 # Install/update dependencies
 echo "📦 Installing dependencies..."
-COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev -o --prefer-dist --no-interaction
+COMPOSER_ALLOW_SUPERUSER=1 composer install -o --prefer-dist --no-interaction
 COMPOSER_ALLOW_SUPERUSER=1 composer dump-autoload -o
 
 # Clear and rebuild caches

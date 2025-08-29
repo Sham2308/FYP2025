@@ -10,6 +10,10 @@ class Item extends Model
     use HasFactory;
 
     protected $table = 'items';
+    protected $primaryKey = 'asset_id';   // ✅ use asset_id instead of id
+    public $incrementing = false;         // ✅ asset_id is not auto-increment
+    protected $keyType = 'string';        // ✅ asset_id is a string
+
 
     protected $fillable = [
         'uid',
@@ -20,7 +24,7 @@ class Item extends Model
         'type_id',
         'serial_no',
         'status',
-        'qr_id',
+        'purchase_date',
         'remarks',
     ];
 }
