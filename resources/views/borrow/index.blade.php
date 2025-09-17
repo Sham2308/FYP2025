@@ -2,36 +2,50 @@
 <html>
 <head>
     <title>Borrow Item</title>
+    <link rel="icon" type="image/png" href="{{ asset('pblogo (2).png') }}">
     <style>
-        body { margin:0; font-family: system-ui, Arial, sans-serif; background:#ffffff; color:#111; }
+        body { margin:0; font-family: system-ui, Arial, sans-serif; background:#ffffff; color:#111; font-size:14px; }
         header { display:flex; justify-content:space-between; align-items:center;
                  padding:14px 30px; background:#2563eb; color:#fff; }
         header .logo { font-size:20px; font-weight:700; letter-spacing:0.5px; }
         header nav a { color:#fff; text-decoration:none; margin-left:20px; font-weight:600; }
         header nav a:hover { text-decoration:underline; }
-        h2 { text-align:center; margin:24px 0 8px; }
-        .wrap { width:95%; max-width:1300px; margin: 0 auto 40px; display:flex; gap:20px; align-items:flex-start; }
-        .card { border:1px solid #e5e7eb; border-radius:12px; padding:16px; background:#f9fafb; margin-top:14px; flex:1; }
+        h2 { text-align:center; margin:24px 0 8px; font-size:22px; }
+        
+        /* 🔹 Bigger container */
+        .wrap { width:98%; max-width:1600px; margin: 0 auto 40px; display:flex; gap:24px; align-items:flex-start; }
+
+        /* 🔹 Card size + padding */
+        .card { border:1px solid #e5e7eb; border-radius:12px; padding:18px; background:#f9fafb; margin-top:14px; flex:1; font-size:14px; }
+
+        /* 🔹 Rows spacing + compact inputs */
         .row { display:flex; gap:12px; flex-wrap:wrap; }
         .row input, .row textarea {
-            padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px;
-            min-width:160px; flex:1;
+            padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px;
+            min-width:150px; flex:1; font-size:14px;
         }
         input[readonly] { background:#e5e7eb; color:#374151; }
         textarea { min-height:60px; resize:vertical; flex:1; }
+
         .actions { display:flex; gap:10px; margin-top:12px; }
-        .btn { padding:10px 14px; border:none; border-radius:8px; font-weight:600; cursor:pointer; }
+        .btn { padding:8px 14px; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:14px; }
         .btn-success { background:#16a34a; color:#fff; }
         .btn-danger { background:#dc2626; color:#fff; }
         .btn-warning { background:#f59e0b; color:#fff; }
         .btn-success:hover { background:#15803d; }
         .btn-danger:hover { background:#b91c1c; }
         .btn-warning:hover { background:#d97706; }
-        .btn-sm { padding:6px 12px; font-size:13px; }
-        table { border-collapse: collapse; width: 100%; margin-top:16px; font-size:14px; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; vertical-align: middle; }
-        th { background: #f5f5f5; }
-        td form { display:block; margin:4px 0; } /* stack Return + Delete */
+        .btn-sm { padding:5px 10px; font-size:12px; }
+
+        /* 🔹 Table adjustments */
+        table { border-collapse: collapse; width: 100%; margin-top:16px; font-size:13px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: center; vertical-align: middle; }
+        th { background: #f5f5f5; font-size:13px; }
+        td form { display:block; margin:4px 0; }
+
+        /* 🔹 Resize inventory vs borrow form */
+        .inventory-card { flex:0.35; }
+        .borrow-card { flex:0.65; }
     </style>
 </head>
 <body>
@@ -43,6 +57,7 @@
             <a href="/">Home</a>
             <a href="/borrow">Borrow</a>
             <a href="{{ route('nfc.inventory') }}">Inventory</a>
+            <a href="{{ route('history.index') }}">History</a>
         </nav>
     </header>
 
@@ -92,12 +107,19 @@
             <form action="{{ route('borrow.store') }}" method="POST">
                 @csrf
                 <div class="row">
-                    <input name="user_id" type="text" placeholder="Student / Staff ID" required>
-                    <input name="borrower_name" type="text" placeholder="Borrower Name" required>
+                    <!-- Card UID (user scan) -->
+                    <input id="card_uid" name="card_uid" type="text" placeholder="Card UID" readonly>
+                    <button type="button" id="scanBtn" class="btn btn-warning">Scan Card</button>
+                    <input id="user_id" name="user_id" type="text" placeholder="Student / Staff ID" readonly required>
+                    <input id="borrower_name" name="borrower_name" type="text" placeholder="Borrower Name" readonly required>
                 </div>
 
                 <div class="row" style="margin-top:10px;">
-                    <input id="uid" name="uid" type="text" placeholder="UID" required>
+                    <!-- Item UID (equipment) -->
+                    <div style="display:flex; gap:6px; flex:1;">
+                        <input id="item_uid" name="uid" type="text" placeholder="Item UID" required readonly>
+                        <button type="button" id="scanStickerBtn" class="btn btn-success">Scan Sticker</button>
+                    </div>
                     <input id="asset_id" name="asset_id" type="text" placeholder="Asset ID" readonly>
                     <input id="name" name="name" type="text" placeholder="Item Name" readonly>
                 </div>
@@ -148,7 +170,7 @@
                         <td>{{ $borrow->uid }}</td>
                         <td>{{ $borrow->item->asset_id ?? '-' }}</td>
                         <td>{{ $borrow->borrow_date ? \Carbon\Carbon::parse($borrow->borrow_date)->format('Y-m-d') : '-' }}</td>
-                        <td>{{ $borrow->return_date ? \Carbon\Carbon::parse($borrow->return_date)->format('Y-m-d') : '-' }}</td>
+                        <td>{{ $borrow->due_date ? \Carbon\Carbon::parse($borrow->due_date)->format('Y-m-d') : '-' }}</td>
                         <td>{{ $borrow->borrowed_at }}</td>
                         <td>{{ $borrow->returned_at ? \Carbon\Carbon::parse($borrow->returned_at)->format('Y-m-d') : 'Not returned' }}</td>
                         <td>{{ $borrow->item->status ?? '-' }}</td>
@@ -181,28 +203,104 @@
     </div>
 
 <script>
-document.getElementById('uid').addEventListener('blur', async function() {
-    const uid = this.value.trim();
-    if (!uid) return;
-
+async function fetchUser(cardUid) {
     try {
-        const res = await fetch(`/borrow/fetch/${uid}`);
-        if (!res.ok) throw new Error('Item not found');
+        const res = await fetch(`/api/borrow/user/${cardUid}`);
+        if (!res.ok) throw new Error("User not found");
         const data = await res.json();
+        document.getElementById('card_uid').value = data.uid || '';
+        document.getElementById('user_id').value = data.student_id || '';
+        document.getElementById('borrower_name').value = data.name || '';
+    } catch (err) {
+        alert(err.message);
+    }
+}
 
+// Item UID input blur → fetch item info
+async function fetchItem(itemUid) {
+    try {
+        const res = await fetch(`/borrow/fetch/${itemUid}`);
+        if (!res.ok) throw new Error("Item not found");
+        const data = await res.json();
         document.getElementById('asset_id').value = data.asset_id || '';
         document.getElementById('name').value = data.name || '';
-        document.getElementById('purchase_date').value = data.purchase_date || '';
         document.getElementById('status').value = data.status || '';
+        document.getElementById('purchase_date').value = data.purchase_date || '';
     } catch (err) {
-        document.getElementById('asset_id').value = '';
-        document.getElementById('name').value = '';
-        document.getElementById('purchase_date').value = '';
-        document.getElementById('status').value = '';
-        alert('UID not found in items table.');
+        alert(err.message);
+    }
+}
+
+document.getElementById('item_uid').addEventListener('blur', function() {
+    const uid = this.value.trim();
+    if (uid) fetchItem(uid);
+});
+
+// Scan Card
+document.getElementById('scanBtn').addEventListener('click', async () => {
+    try {
+        await fetch('/api/request-scan', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'card' })
+        });
+
+        alert("Please tap your user card...");
+
+        let uid = null;
+        for (let i = 0; i < 15; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            let res = await fetch('/api/read-uid');
+            let data = await res.json();
+            if (data.uid) { uid = data.uid; break; }
+        }
+
+        if (!uid) throw new Error("No card detected");
+
+        document.getElementById('card_uid').value = uid;
+        await fetchUser(uid);
+    } catch (err) {
+        alert("Error scanning card: " + err.message);
     }
 });
-</script>
 
+// Scan Sticker
+document.getElementById('scanStickerBtn').addEventListener('click', async () => {
+    try {
+        await fetch('/api/request-scan', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'sticker' })
+        });
+
+        alert("Please tap the item’s NFC sticker...");
+
+        let uid = null;
+        for (let i = 0; i < 15; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            let res = await fetch('/api/read-uid');
+            let data = await res.json();
+            if (data.uid) { uid = data.uid; break; }
+        }
+
+        if (!uid) throw new Error("No sticker detected");
+
+        document.getElementById('item_uid').value = uid;
+
+        let itemRes = await fetch(`/borrow/fetch/${uid}`);
+        if (!itemRes.ok) throw new Error("Item not found in DB");
+        let item = await itemRes.json();
+
+        document.getElementById('asset_id').value       = item.asset_id || '';
+        document.getElementById('name').value           = item.name || '';
+        document.getElementById('status').value         = item.status || '';
+        document.getElementById('purchase_date').value  = item.purchase_date || '';
+        document.querySelector("textarea[name='remarks']").value = item.remarks || '';
+    } catch (err) {
+        alert("Error scanning sticker: " + err.message);
+    }
+});
+
+</script>
 </body>
 </html>

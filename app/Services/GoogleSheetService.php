@@ -20,7 +20,7 @@ class GoogleSheetService
         $this->spreadsheetId = config('services.google.sheet_id');
     }
 
-    public function appendRow(array $values, $range = 'Sheet1!A:Z')
+    public function appendRow(array $values, $range = 'Items!A:Z')
     {
         $body = new \Google\Service\Sheets\ValueRange([
             'values' => [$values]
@@ -35,7 +35,7 @@ class GoogleSheetService
         );
     }
 
-    public function deleteRowByAssetId($assetId, $range = 'Sheet1!A:Z')
+    public function deleteRowByAssetId($assetId, $range = 'Items!A:Z')
     {
         // Get all rows from sheet
         $response = $this->service->spreadsheets_values->get($this->spreadsheetId, $range);
@@ -71,5 +71,16 @@ class GoogleSheetService
         }
 
         return false;
+    }
+    public function getValues($range = 'Users!A:Z')
+    {
+        return $this->service->spreadsheets_values->get(
+            $this->spreadsheetId,
+            $range
+        );
+    }
+    public function getService()
+    {
+        return $this->service;
     }
 }

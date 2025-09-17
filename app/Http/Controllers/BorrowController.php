@@ -52,6 +52,7 @@ class BorrowController extends Controller
 
         $this->mirrorToSheet([
             'type'          => 'borrow',
+            'timestamp'     => now()->format('Y-m-d H:i:s'),
             'borrow_id'     => $borrow->id,
             'user_id'       => $borrow->user_id,
             'borrower_name' => $borrow->borrower_name,
@@ -62,9 +63,10 @@ class BorrowController extends Controller
             'return_date'   => optional($borrow->due_date)->format('Y-m-d'),
             'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
             'returned_at'   => '',
-            'status'        => strtolower('borrowed'),  // ✅ always lowercase
+            'status'        => 'borrowed',
             'remarks'       => $borrow->remarks,
         ]);
+
 
         return redirect()->back()->with('success', 'Borrow saved successfully!');
     }
@@ -94,19 +96,21 @@ class BorrowController extends Controller
 
         $this->mirrorToSheet([
             'type'          => 'borrow',
+            'timestamp'     => now()->format('Y-m-d H:i:s'),
             'borrow_id'     => $borrow->id,
             'user_id'       => $borrow->user_id,
-            'borrower_name' => $borrow->borrower_name ?? '',
+            'borrower_name' => $borrow->borrower_name,
             'uid'           => $borrow->uid,
             'asset_id'      => optional($item)->asset_id,
             'name'          => optional($item)->name,
             'borrow_date'   => optional($borrow->borrow_date)->format('Y-m-d'),
-            'return_date'   => optional($borrow->return_date)->format('Y-m-d'),
+            'return_date'   => optional($borrow->due_date)->format('Y-m-d'),
             'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
-            'returned_at'   => optional($borrow->returned_at)->format('Y-m-d'),
-            'status'        => strtolower($item->status), // ✅ always lowercase
-            'remarks'       => $borrow->remarks ?? '',
+            'returned_at'   => now()->format('Y-m-d'),
+            'status'        => 'available',
+            'remarks'       => $borrow->remarks,
         ]);
+
 
         return redirect()->back()->with('success', 'Item returned successfully!');
     }
@@ -140,10 +144,47 @@ class BorrowController extends Controller
         }
 
         return response()->json([
+            'uid'           => $item->uid,
             'asset_id'      => $item->asset_id,
             'name'          => $item->name,
+            'detail'        => $item->detail,
+            'accessories'   => $item->accessories,
+            'type_id'       => $item->type_id,
+            'serial_no'     => $item->serial_no,
             'status'        => $item->status,
             'purchase_date' => $item->purchase_date,
+            'remarks'       => $item->remarks,
+        ]);
+    }
+
+
+    // ✅ Make sure this matches your route list
+    public function getUserByUid($cardUid)
+    {
+        $service = new \App\Services\GoogleSheetService();
+        $response = $service->getValues('Users!A:C'); // ✅ use helper method
+        $values = $response->getValues();
+
+        $studentId = null;
+        $name = null;
+
+        foreach ($values as $index => $row) {
+            if ($index === 0) continue; // skip header
+            if (isset($row[0]) && trim($row[0]) === trim($cardUid)) {
+                $studentId = $row[1] ?? null;
+                $name      = $row[2] ?? null;
+                break;
+            }
+        }
+
+        if (!$studentId || !$name) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        return response()->json([
+            'uid'        => $cardUid,
+            'student_id' => $studentId,
+            'name'       => $name
         ]);
     }
 

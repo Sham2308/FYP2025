@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>NFC Inventory Dashboard</title>
+    <link rel="icon" type="image/png" href="{{ asset('pblogo (2).png') }}">
     <style>
         body { margin:0; font-family: system-ui, Arial, sans-serif; background:#fff; color:#111; }
         header { display:flex; justify-content:space-between; align-items:center;
@@ -41,6 +42,7 @@
             <a href="/">Home</a>
             <a href="/borrow">Borrow</a>
             <a href="{{ route('nfc.inventory') }}">Inventory</a>
+            <a href="{{ route('history.index') }}">History</a>
         </nav>
     </header>
 
@@ -70,7 +72,10 @@
                 <form method="POST" action="{{ route('items.store') }}">
                     @csrf
                     <div class="form-row">
-                        <input type="text" name="uid" placeholder="UID" required>
+                        <div style="flex:1; display:flex; gap:6px;">
+                            <input type="text" id="uid" name="uid" placeholder="UID" required readonly>
+                            <button type="button" id="scan-btn" class="btn btn-green">Scan Sticker</button>
+                        </div>
                         <input type="text" name="asset_id" placeholder="Asset ID" required>
                         <input type="text" name="name" placeholder="Name">
                         <input type="text" name="detail" placeholder="Detail">
@@ -163,6 +168,34 @@ window.onclick = (e) => {
         document.getElementById("itemModal").style.display = "none";
     }
 };
+document.getElementById("scan-btn").addEventListener("click", async () => {
+    try {
+        // Step 1: Ask backend to request scan
+        await fetch("/api/request-scan", { method: "POST" });
+
+        alert("Please tap your NFC card...");
+
+        // Step 2: Poll for UID (max 15s)
+        let uid = null;
+        for (let i = 0; i < 15; i++) {
+            let response = await fetch("/api/read-uid");
+            let data = await response.json();
+            if (data.uid) {
+                uid = data.uid;
+                break;
+            }
+            await new Promise(r => setTimeout(r, 1000));
+        }
+
+        if (uid) {
+            document.getElementById("uid").value = uid;
+        } else {
+            alert("No UID received. Try again.");
+        }
+    } catch (err) {
+        alert("Error: " + err);
+    }
+});
 </script>
 
 </body>

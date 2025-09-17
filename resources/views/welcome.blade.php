@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>TapNBorrow — Welcome</title>
+  <link rel="icon" type="image/png" href="{{ asset('pblogo (2).png') }}">
+
   <style>
     :root { --bg:#0f172a; --card:#111827; --text:#f8fafc; --muted:#9ca3af; }
     * { box-sizing:border-box; }
@@ -25,6 +27,9 @@
       <p>NFC inventory system powered by Laravel. Manage your assets or start scanning with your device.</p>
       <div class="actions">
         <a class="button" href="{{ route('nfc.inventory') }}">Go to Inventory</a>
+      </div>
+      <div class="text-center mt-3">
+      <a href="{{ route('register-user') }}" class="btn btn-primary">Register</a>
       </div>
     </section>
   </main>
