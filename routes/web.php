@@ -1,30 +1,48 @@
 <?php
 
+use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\BorrowController;
-
-Route::get('/nfc-inventory', [InventoryController::class, 'index'])->name('nfc.inventory');
-
-// Import from Google Sheets
-Route::get('/items/import/google', [InventoryController::class, 'importFromGoogleSheet'])->name('items.import.google');
-
-// Add item
-Route::post('/items', [InventoryController::class, 'store'])->name('items.store');
-
-// Delete item (by asset_id)
-Route::delete('/items/{asset_id}', [InventoryController::class, 'destroy'])->name('items.destroy');
-
-
-// Borrow page
-Route::get('/borrow', [BorrowController::class, 'index'])->name('borrow.index');
-Route::post('/borrow/store', [BorrowController::class, 'store'])->name('borrow.store');
-Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnItem'])->name('borrow.return');
-Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
-
-// 🔹 New delete borrow route
-Route::delete('/borrow/{id}', [BorrowController::class, 'destroy'])->name('borrow.destroy');
+use App\Http\Controllers\InventoryController;
 
 Route::get('/', function () {
-    return view('welcome');
+    if (auth()->check()) {
+        return auth()->user()->role === 'admin'
+            ? redirect()->route('nfc.inventory')   // admins → inventory
+            : redirect()->route('borrow.index');   // non-admins → borrow
+    }
+    return view('welcome'); // guests see welcome first
 });
+
+// ── Public Borrow index (guests can view) ───────────────────────────────
+Route::get('/borrow', [BorrowController::class, 'index'])->name('borrow.index');
+
+// ── Auth (available to any logged-in user) ──────────────────────────────
+Route::middleware('auth')->group(function () {
+    // Profile
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Borrow actions (must be logged in)
+    Route::post('/borrow', [BorrowController::class, 'store'])->name('borrow.store');
+    Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnItem'])->name('borrow.return');
+    Route::delete('/borrow/{id}', [BorrowController::class, 'destroy'])->name('borrow.destroy');
+    Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
+});
+
+// ── Admin-only ──────────────────────────────────────────────────────────
+Route::middleware(['auth', 'admin'])->group(function () {
+    // Inventory (admin dashboard)
+    Route::get('/nfc/inventory', [InventoryController::class, 'index'])
+        ->name('nfc.inventory');
+
+    // Import & items
+    Route::match(['GET','POST'], '/items/import/google', [\App\Http\Controllers\ItemImportController::class, 'google'])
+        ->name('items.import.google');
+    Route::post('/items', function () {
+        return back()->with('status', 'Items stored (placeholder).');
+    })->name('items.store');
+});
+
+require __DIR__ . '/auth.php';

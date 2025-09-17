@@ -7,7 +7,8 @@
         header { display:flex; justify-content:space-between; align-items:center;
                  padding:14px 30px; background:#2563eb; color:#fff; }
         header .logo { font-size:20px; font-weight:700; letter-spacing:0.5px; }
-        header nav a { color:#fff; text-decoration:none; margin-left:20px; font-weight:600; }
+        header nav { display:flex; align-items:center; gap:20px; }
+        header nav a { color:#fff; text-decoration:none; font-weight:600; }
         header nav a:hover { text-decoration:underline; }
         h2 { text-align:center; margin:24px 0 6px; }
         .wrap { width:95%; margin: 0 auto 40px; }
@@ -41,6 +42,17 @@
             <a href="/">Home</a>
             <a href="/borrow">Borrow</a>
             <a href="{{ route('nfc.inventory') }}">Inventory</a>
+
+            <!-- Greeting -->
+            @auth
+                <span>Hello, {{ auth()->user()->role === 'admin' ? 'Admin' : auth()->user()->name }}</span>
+
+                <!-- Logout Button -->
+                <form method="POST" action="{{ route('logout') }}" style="display:inline;">
+                    @csrf
+                    <button type="submit" class="btn btn-red" style="margin-left:10px;">Logout</button>
+                </form>
+            @endauth
         </nav>
     </header>
 
@@ -54,7 +66,6 @@
     @endif
 
     <div class="wrap">
-
         <!-- Top actions -->
         <div class="card">
             <div class="top-actions">

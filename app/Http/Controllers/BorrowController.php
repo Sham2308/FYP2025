@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\Log;
 
 class BorrowController extends Controller
 {
+    public function __construct()
+    {
+        // Guests can view the borrow page; actions require auth
+        $this->middleware('auth')->except(['index']);
+    }
+
     public function index()
     {
         $borrows = Borrow::with('item')->latest()->take(10)->get();
@@ -62,7 +68,7 @@ class BorrowController extends Controller
             'return_date'   => optional($borrow->due_date)->format('Y-m-d'),
             'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
             'returned_at'   => '',
-            'status'        => strtolower('borrowed'),  // ✅ always lowercase
+            'status'        => strtolower('borrowed'),
             'remarks'       => $borrow->remarks,
         ]);
 
@@ -104,7 +110,7 @@ class BorrowController extends Controller
             'return_date'   => optional($borrow->return_date)->format('Y-m-d'),
             'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
             'returned_at'   => optional($borrow->returned_at)->format('Y-m-d'),
-            'status'        => strtolower($item->status), // ✅ always lowercase
+            'status'        => strtolower($item->status),
             'remarks'       => $borrow->remarks ?? '',
         ]);
 
