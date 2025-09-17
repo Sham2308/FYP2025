@@ -26,7 +26,13 @@
       <h1>TapNBorrow</h1>
       <p>NFC inventory system powered by Laravel. Manage your assets or start scanning with your device.</p>
       <div class="actions">
-        <a class="button" href="{{ route('nfc.inventory') }}">Go to Inventory</a>
+        {{-- Everyone (guest or logged-in non-admin) can access Borrow --}}
+        <a class="button" href="{{ route('borrow.index') }}">Go to Borrow</a>
+
+        {{-- Only show login button if user is not logged in --}}
+        @guest
+          <a class="button ghost" href="{{ route('login') }}">Login</a>
+        @endguest
       </div>
       <div class="text-center mt-3">
       <a href="{{ route('register-user') }}" class="btn btn-primary">Register</a>

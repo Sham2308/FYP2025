@@ -1,46 +1,63 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Http\Request;
-
-use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BorrowController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\RegisterController;
+use App\Http\Controllers\ItemImportController;
 
+// ── Home / Welcome ─────────────────────────────────────────────────────
+Route::get('/', function () {
+    if (auth()->check()) {
+        return auth()->user()->role === 'admin'
+            ? redirect()->route('nfc.inventory')   // admins → inventory
+            : redirect()->route('borrow.index');   // non-admins → borrow
+    }
+    return view('welcome'); // guests see welcome first
+});
 
-Route::get('/nfc-inventory', [InventoryController::class, 'index'])->name('nfc.inventory');
+// ── Public pages ───────────────────────────────────────────────────────
+Route::get('/borrow', [BorrowController::class, 'index'])->name('borrow.index');
 Route::get('/history', [HistoryController::class, 'index'])->name('history.index');
 
-// Web Routes
+// (Optional) simple register page if you’re using a custom controller
 Route::get('/register', [RegisterController::class, 'index'])->name('register-user');
 Route::post('/register', [RegisterController::class, 'store'])->name('register-user.store');
 
+// ── Auth-only (any logged-in user) ─────────────────────────────────────
+Route::middleware('auth')->group(function () {
+    // Profile
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-// Import from Google Sheets
-Route::get('/items/import/google', [InventoryController::class, 'importFromGoogleSheet'])->name('items.import.google');
+    // Borrow actions
+    Route::post('/borrow', [BorrowController::class, 'store'])->name('borrow.store'); // POST /borrow
+    Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnItem'])->name('borrow.return');
+    Route::delete('/borrow/{id}', [BorrowController::class, 'destroy'])->name('borrow.destroy');
+    Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
 
-// Add item
-Route::post('/items', [InventoryController::class, 'store'])->name('items.store');
-
-// Delete item (by asset_id)
-Route::delete('/items/{asset_id}', [InventoryController::class, 'destroy'])->name('items.destroy');
-    
-
-// Borrow page
-Route::get('/borrow', [BorrowController::class, 'index'])->name('borrow.index');
-Route::post('/borrow/store', [BorrowController::class, 'store'])->name('borrow.store');
-Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnItem'])->name('borrow.return');
-Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
-
-// 🔹 New delete borrow route
-Route::delete('/borrow/{id}', [BorrowController::class, 'destroy'])->name('borrow.destroy');
-
-// History page
-Route::get('/history', [HistoryController::class, 'index'])->name('history.index');
-Route::post('/history/import/google', [HistoryController::class, 'importFromGoogleSheet'])->name('history.import.google');
-
-Route::get('/', function () {
-    return view('welcome');
+    // History: import from Google Sheets (if needed)
+    Route::post('/history/import/google', [HistoryController::class, 'importFromGoogleSheet'])
+        ->name('history.import.google');
 });
+
+// ── Admin-only ─────────────────────────────────────────────────────────
+Route::middleware(['auth', 'admin'])->group(function () {
+    // Inventory dashboard
+    Route::get('/nfc/inventory', [InventoryController::class, 'index'])->name('nfc.inventory');
+    // (If your app still links to /nfc-inventory, keep a redirect)
+    Route::redirect('/nfc-inventory', '/nfc/inventory');
+
+    // Import items from Google Sheets (allow GET for form & POST for submit)
+    Route::match(['GET', 'POST'], '/items/import/google', [ItemImportController::class, 'google'])
+        ->name('items.import.google');
+
+    // Items CRUD
+    Route::post('/items', [InventoryController::class, 'store'])->name('items.store');
+    Route::delete('/items/{asset_id}', [InventoryController::class, 'destroy'])->name('items.destroy');
+});
+
+require __DIR__ . '/auth.php';

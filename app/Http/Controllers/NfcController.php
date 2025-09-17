@@ -142,4 +142,15 @@ class NfcController extends Controller
         ];
         return $map[strtolower($status)] ?? ucfirst($status);
     }
+
+    public function index()
+    {
+         // Fetch from nfc_scans but name it $items to match the Blade
+        $items = \App\Models\NfcScan::orderByDesc('created_at')->paginate(10);
+
+        // Your view path per your structure: resources/views/nfc_inventory/index.blade.php
+        return view('nfc_inventory.index', compact('items'));
+    }
+
+
 }

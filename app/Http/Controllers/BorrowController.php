@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\Log;
 
 class BorrowController extends Controller
 {
+    public function __construct()
+    {
+        // Guests can view the borrow page; actions require auth
+        $this->middleware('auth')->except(['index']);
+    }
+
     public function index()
     {
         $borrows = Borrow::with('item')->latest()->take(10)->get();
@@ -64,9 +70,8 @@ class BorrowController extends Controller
             'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
             'returned_at'   => '',
             'status'        => 'borrowed',
-            'remarks'       => $borrow->remarks,
+            'remarks'       => $borrow->remarks ?? '',
         ]);
-
 
         return redirect()->back()->with('success', 'Borrow saved successfully!');
     }
@@ -92,6 +97,7 @@ class BorrowController extends Controller
             'returned_at' => now(),
             'return_date' => now()->toDateString(),
         ]);
+
         $item->update(['status' => 'available']);
 
         $this->mirrorToSheet([
@@ -108,9 +114,8 @@ class BorrowController extends Controller
             'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
             'returned_at'   => now()->format('Y-m-d'),
             'status'        => 'available',
-            'remarks'       => $borrow->remarks,
+            'remarks'       => $borrow->remarks ?? '',
         ]);
-
 
         return redirect()->back()->with('success', 'Item returned successfully!');
     }
@@ -157,12 +162,11 @@ class BorrowController extends Controller
         ]);
     }
 
-
     // ✅ Make sure this matches your route list
     public function getUserByUid($cardUid)
     {
         $service = new \App\Services\GoogleSheetService();
-        $response = $service->getValues('Users!A:C'); // ✅ use helper method
+        $response = $service->getValues('Users!A:C');
         $values = $response->getValues();
 
         $studentId = null;
