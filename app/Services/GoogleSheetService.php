@@ -7,24 +7,51 @@ use Google\Service\Sheets;
 
 class GoogleSheetService
 {
-    private $service;
-    private $spreadsheetId;
+    private ?Sheets $service = null;
+    private ?string $spreadsheetId = null;
 
     public function __construct()
     {
+        // Only initialize when explicitly enabled
+        $enabled = filter_var(env('USE_GOOGLE_SHEETS_API', false), FILTER_VALIDATE_BOOLEAN);
+        if (!$enabled) {
+            return; // CSV-only mode → do nothing
+        }
+
+        // Resolve creds path
+        $pathFromEnv = env('GOOGLE_SHEETS_CREDENTIALS_PATH'); // e.g. storage/app/google/credentials.json
+        if (!$pathFromEnv) {
+            return; // not configured
+        }
+
+        // If .env uses storage/... prefer storage_path()
+        $fullPath = str_starts_with($pathFromEnv, 'storage/')
+            ? storage_path(substr($pathFromEnv, strlen('storage/')))
+            : base_path($pathFromEnv);
+
+        if (!is_file($fullPath)) {
+            return; // file missing → stay in no-op mode (don’t throw)
+        }
+
         $client = new Client();
-        $client->setAuthConfig(storage_path('app/google/credentials.json'));
-        $client->addScope(Sheets::SPREADSHEETS);
+        $client->setAuthConfig($fullPath);
+        $client->setScopes([Sheets::SPREADSHEETS]);
 
         $this->service = new Sheets($client);
-        $this->spreadsheetId = config('services.google.sheet_id');
+        // use config() if you have it, else env fallback
+        $this->spreadsheetId = config('services.google.sheet_id', env('GOOGLE_SHEET_ID'));
     }
 
-    public function appendRow(array $values, $range = 'Items!A:Z')
+    public function isReady(): bool
     {
-        $body = new \Google\Service\Sheets\ValueRange([
-            'values' => [$values]
-        ]);
+        return $this->service !== null && !empty($this->spreadsheetId);
+    }
+
+    public function appendRow(array $values, string $range = 'Items!A:Z')
+    {
+        $this->assertReady();
+
+        $body = new \Google\Service\Sheets\ValueRange(['values' => [$values]]);
         $params = ['valueInputOption' => 'RAW'];
 
         return $this->service->spreadsheets_values->append(
@@ -35,27 +62,25 @@ class GoogleSheetService
         );
     }
 
-    public function deleteRowByAssetId($assetId, $range = 'Items!A:Z')
+    public function deleteRowByAssetId(string $assetId, string $range = 'Items!A:Z'): bool
     {
-        // Get all rows from sheet
-        $response = $this->service->spreadsheets_values->get($this->spreadsheetId, $range);
-        $values = $response->getValues();
+        $this->assertReady();
 
-        if (empty($values)) {
-            return false;
-        }
+        $response = $this->service->spreadsheets_values->get($this->spreadsheetId, $range);
+        $values = $response->getValues() ?? [];
+        if (empty($values)) return false;
 
         foreach ($values as $index => $row) {
             // Column B (index 1) is asset_id
-            if (isset($row[1]) && $row[1] === $assetId) {
+            if (isset($row[1]) && (string)$row[1] === (string)$assetId) {
                 $requests = [
                     new \Google\Service\Sheets\Request([
                         'deleteDimension' => [
                             'range' => [
-                                'sheetId' => 0, // first sheet (usually 0)
-                                'dimension' => 'ROWS',
+                                'sheetId'  => 0, // adjust if not first tab
+                                'dimension'=> 'ROWS',
                                 'startIndex' => $index,
-                                'endIndex' => $index + 1,
+                                'endIndex'   => $index + 1,
                             ]
                         ]
                     ])
@@ -69,18 +94,25 @@ class GoogleSheetService
                 return true;
             }
         }
-
         return false;
     }
-    public function getValues($range = 'Users!A:Z')
+
+    public function getValues(string $range = 'Users!A:Z')
     {
-        return $this->service->spreadsheets_values->get(
-            $this->spreadsheetId,
-            $range
-        );
+        $this->assertReady();
+
+        return $this->service->spreadsheets_values->get($this->spreadsheetId, $range);
     }
-    public function getService()
+
+    public function getService(): ?Sheets
     {
         return $this->service;
+    }
+
+    private function assertReady(): void
+    {
+        if (!$this->isReady()) {
+            throw new \RuntimeException('Google Sheets API not configured (CSV-only mode or missing credentials).');
+        }
     }
 }

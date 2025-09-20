@@ -8,8 +8,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
-use App\Providers\RouteServiceProvider;
-
 
 class AuthenticatedSessionController extends Controller
 {
@@ -27,11 +25,17 @@ class AuthenticatedSessionController extends Controller
     public function store(LoginRequest $request): RedirectResponse
     {
         $request->authenticate();
-
         $request->session()->regenerate();
 
-        return redirect()->intended(route('nfc.inventory'));
+        // Role-aware fallback if there is no intended URL
+        $user = Auth::user();
+        $fallback = match ($user?->role) {
+            'admin'     => route('nfc.inventory'),
+            'technical' => route('technical.dashboard'),
+            default     => route('borrow.index'),
+        };
 
+        return redirect()->intended($fallback);
     }
 
     /**
@@ -42,9 +46,8 @@ class AuthenticatedSessionController extends Controller
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
-
         $request->session()->regenerateToken();
 
-        return redirect('/');  // <-- go to welcome after logout
+        return redirect('/');
     }
 }

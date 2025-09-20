@@ -4,8 +4,16 @@
         <div class="flex justify-between items-center h-14">
             <!-- Left: Brand -->
             <div class="flex items-center">
-                <a href="{{ auth()->check() && auth()->user()->role === 'admin' ? route('nfc.inventory') : route('borrow.index') }}"
-                   class="font-bold text-xl tracking-tight">
+                <a
+                    href="{{ auth()->check()
+                        ? (auth()->user()->role === 'admin'
+                            ? route('nfc.inventory')
+                            : (auth()->user()->role === 'technical'
+                                ? route('technical.dashboard')
+                                : route('borrow.index')))
+                        : route('welcome') }}"
+                    class="font-bold text-xl tracking-tight"
+                >
                     TapNBorrow
                 </a>
             </div>
@@ -21,10 +29,20 @@
                         </a>
                     @endif
 
-                    <a href="{{ route('borrow.index') }}"
-                       class="px-2 py-1 rounded hover:bg-blue-700 transition {{ request()->routeIs('borrow.*') ? 'bg-blue-700 font-semibold' : '' }}">
-                        Borrow
-                    </a>
+                    @if(auth()->user()->role === 'technical')
+                        <a href="{{ route('technical.dashboard') }}"
+                           class="px-2 py-1 rounded hover:bg-blue-700 transition {{ request()->routeIs('technical.*') ? 'bg-blue-700 font-semibold' : '' }}">
+                            Technical
+                        </a>
+                    @endif
+
+                    {{-- Borrow only for non-technical roles --}}
+                    @if(auth()->user()->role !== 'technical')
+                        <a href="{{ route('borrow.index') }}"
+                           class="px-2 py-1 rounded hover:bg-blue-700 transition {{ request()->routeIs('borrow.*') ? 'bg-blue-700 font-semibold' : '' }}">
+                            Borrow
+                        </a>
+                    @endif
 
                     <form method="POST" action="{{ route('logout') }}" class="ml-2">
                         @csrf
@@ -77,10 +95,20 @@
                     </a>
                 @endif
 
-                <a href="{{ route('borrow.index') }}"
-                   class="block px-3 py-2 rounded hover:bg-blue-700 {{ request()->routeIs('borrow.*') ? 'bg-blue-700 font-semibold' : '' }}">
-                    Borrow
-                </a>
+                @if(auth()->user()->role === 'technical')
+                    <a href="{{ route('technical.dashboard') }}"
+                       class="block px-3 py-2 rounded hover:bg-blue-700 {{ request()->routeIs('technical.*') ? 'bg-blue-700 font-semibold' : '' }}">
+                        Technical
+                    </a>
+                @endif
+
+                {{-- Borrow only for non-technical roles --}}
+                @if(auth()->user()->role !== 'technical')
+                    <a href="{{ route('borrow.index') }}"
+                       class="block px-3 py-2 rounded hover:bg-blue-700 {{ request()->routeIs('borrow.*') ? 'bg-blue-700 font-semibold' : '' }}">
+                        Borrow
+                    </a>
+                @endif
 
                 <form method="POST" action="{{ route('logout') }}" class="px-1 pt-2">
                     @csrf

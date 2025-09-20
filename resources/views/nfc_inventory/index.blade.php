@@ -72,7 +72,12 @@
         <!-- Top actions -->
         <div class="card">
             <div class="top-actions">
-                <a href="{{ route('items.import.google') }}" class="btn btn-green">Import from Google Sheets</a>
+                <!-- CHANGED: use POST form instead of GET link -->
+                <form action="{{ route('items.import.google') }}" method="POST" class="inline">
+                    @csrf
+                    <button type="submit" class="btn btn-green">Import from Google Sheets</button>
+                </form>
+
                 <button id="openModal" class="btn btn-green">+ Add Item</button>
             </div>
         </div>

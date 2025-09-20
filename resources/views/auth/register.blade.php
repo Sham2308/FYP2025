@@ -1,52 +1,73 @@
 <x-guest-layout>
-    <form method="POST" action="{{ route('register') }}">
-        @csrf
+    {{-- Remove the Laravel logo --}}
+    <x-slot name="logo"></x-slot>
 
-        <!-- Name -->
-        <div>
-            <x-input-label for="name" :value="__('Name')" />
-            <x-text-input id="name" class="block mt-1 w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
-            <x-input-error :messages="$errors->get('name')" class="mt-2" />
-        </div>
+    <div class="max-w-2xl mx-auto px-6 py-10 font-sans text-gray-900">
+        <h1 class="text-3xl font-bold mb-8">Register User</h1>
 
-        <!-- Email Address -->
-        <div class="mt-4">
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
-        </div>
+        <form method="POST" action="{{ route('register') }}" class="space-y-6">
+            @csrf
 
-        <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
+            {{-- UID --}}
+            <div>
+                <label for="uid" class="block text-base mb-2">UID (Scanned)</label>
+                <div class="flex">
+                    <input id="uid" name="uid" type="text" value="{{ old('uid') }}" required
+                           class="flex-1 h-11 border border-gray-300 px-3 rounded-l-md
+                                  focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button type="button" id="scanBtn"
+                            class="h-11 border border-l-0 border-gray-300 px-4 rounded-r-md
+                                   text-blue-600 hover:bg-blue-50">
+                        Scan Card
+                    </button>
+                </div>
+                @error('uid')
+                    <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+                @enderror
+            </div>
 
-            <x-text-input id="password" class="block mt-1 w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="new-password" />
+            {{-- Name --}}
+            <div>
+                <label for="name" class="block text-base mb-2">Name</label>
+                <input id="name" name="name" type="text" value="{{ old('name') }}" required
+                       class="w-full h-11 border border-gray-300 px-3 rounded-md
+                              focus:outline-none focus:ring-2 focus:ring-blue-500">
+                @error('name')
+                    <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+                @enderror
+            </div>
 
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
-        </div>
+            {{-- Staff / Student ID --}}
+            <div>
+                <label for="staff_id" class="block text-base mb-2">Student / Staff ID</label>
+                <input id="staff_id" name="staff_id" type="text" value="{{ old('staff_id') }}"
+                       class="w-full h-11 border border-gray-300 px-3 rounded-md
+                              focus:outline-none focus:ring-2 focus:ring-blue-500">
+                @error('staff_id')
+                    <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+                @enderror
+            </div>
 
-        <!-- Confirm Password -->
-        <div class="mt-4">
-            <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
+            {{-- Save / Cancel --}}
+            <div class="flex gap-3 pt-2">
+                <button type="submit"
+                        class="h-11 px-6 rounded-md bg-green-600 text-white font-medium hover:bg-green-700">
+                    Save
+                </button>
+                <a href="{{ url('/') }}"
+                class="h-11 px-6 rounded-md bg-gray-500 text-white font-medium hover:bg-gray-600 flex items-center justify-center">
+                    Cancel
+                </a>
+            </div>
 
-            <x-text-input id="password_confirmation" class="block mt-1 w-full"
-                            type="password"
-                            name="password_confirmation" required autocomplete="new-password" />
+        </form>
+    </div>
 
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
-        </div>
-
-        <div class="flex items-center justify-end mt-4">
-            <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('login') }}">
-                {{ __('Already registered?') }}
-            </a>
-
-            <x-primary-button class="ms-4">
-                {{ __('Register') }}
-            </x-primary-button>
-        </div>
-    </form>
+    <script>
+        // Example only: replace with your real NFC integration
+        document.getElementById('scanBtn')?.addEventListener('click', () => {
+            const el = document.getElementById('uid');
+            if (el && !el.value) el.value = 'FAKE-UID-123456';
+        });
+    </script>
 </x-guest-layout>

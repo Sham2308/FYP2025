@@ -9,8 +9,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules;
 use Illuminate\View\View;
+use Illuminate\Support\Str;   // 👈 add this
 
 class RegisteredUserController extends Controller
 {
@@ -30,19 +30,23 @@ class RegisteredUserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'uid'      => ['required', 'string', 'max:255', 'unique:users,uid'],
+            'name'     => ['required', 'string', 'max:255'],
+            'staff_id' => ['nullable', 'string', 'max:255'],
+            // email now optional
+            'email'    => ['nullable', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
         ]);
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'uid'      => $request->uid,
+            'name'     => $request->name,
+            'staff_id' => $request->staff_id,
+            'email'    => $request->email, // can be null
+            // generate random password automatically
+            'password' => Hash::make(Str::random(16)),
         ]);
 
         event(new Registered($user));
-
         Auth::login($user);
 
         return redirect(route('dashboard', absolute: false));
