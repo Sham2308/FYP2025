@@ -6,7 +6,9 @@ use App\Http\Controllers\BorrowController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\ItemImportController;
-use App\Http\Controllers\TechnicalDashboardController; // ← added
+use App\Http\Controllers\TechnicalDashboardController; // ← existing
+use App\Http\Controllers\NotificationController;       // ← ADDED (for bell API)
+use App\Notifications\GenericDatabaseNotification;     // ← ADDED (only for /notify-test)
 
 // ── Home / Welcome ─────────────────────────────────────────────────────
 Route::get('/', function () {
@@ -43,6 +45,22 @@ Route::middleware('auth')->group(function () {
     // History: import from Google Sheets
     Route::post('/history/import/google', [HistoryController::class, 'importFromGoogleSheet'])
         ->name('history.import.google');
+
+    // ── Notifications (KEEP these) ─────────────────────────────────────
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])
+        ->name('notifications.unreadCount');
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])
+        ->name('notifications.markAllRead');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markOneRead'])
+        ->name('notifications.markOneRead');
+
+    // ── TEMP: smoke-test a notification (REMOVE later) ─────────────────
+    Route::get('/notify-test', function () {
+        auth()->user()->notify(
+            new GenericDatabaseNotification('Test notice', 'Hello from the bell!', url('/'))
+        );
+        return 'Sent';
+    })->name('notify.test');
 });
 
 // ── Technical-only ─────────────────────────────────────────────────────
@@ -66,6 +84,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::delete('/items/{asset_id}', [InventoryController::class, 'destroy'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.destroy');
+
+    // 🔧 Mark item as Under Repair (admin triggers this)
+    Route::patch('/items/{asset_id}/under-repair', [InventoryController::class, 'markUnderRepair'])
+        ->where('asset_id', '[A-Za-z0-9\-_]+')
+        ->name('items.markUnderRepair');
 });
 
 // Breeze / Fortify authentication routes

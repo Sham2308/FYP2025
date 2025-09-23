@@ -10,24 +10,41 @@ class RoleMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
-     * @param  mixed ...$roles
-     * @return mixed
+     * Usage examples in routes:
+     *   ->middleware('role:technical')
+     *   ->middleware('role:technical,admin')
+     *   ->middleware('role:technical|admin')
      */
     public function handle(Request $request, Closure $next, ...$roles)
     {
-        // If user not logged in, redirect to login
+        // Not logged in → go to login page
         if (! $request->user()) {
             return redirect()->route('login');
         }
 
-        // If the logged-in user’s role is not in the allowed list, deny access
-        if (! in_array($request->user()->role, $roles, true)) {
+        // If roles came as a single string, split by comma or pipe
+        if (count($roles) === 1 && is_string($roles[0])) {
+            $roles = preg_split('/[,\|]/', $roles[0]) ?: [];
+        }
+
+        // Normalize roles (trim + lowercase, remove empties)
+        $roles = array_values(array_filter(array_map(
+            fn ($r) => strtolower(trim((string) $r)),
+            $roles
+        )));
+
+        // If nothing specified, deny by default
+        if (empty($roles)) {
             abort(403, 'Forbidden');
         }
 
-        // Otherwise allow the request through
+        // Compare using lowercase
+        $userRole = strtolower((string) $request->user()->role);
+
+        if (! in_array($userRole, $roles, true)) {
+            abort(403, 'Forbidden');
+        }
+
         return $next($request);
     }
 }

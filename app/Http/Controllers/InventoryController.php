@@ -8,6 +8,12 @@ use Illuminate\Support\Facades\Http;
 use App\Services\GoogleSheetService;
 use Carbon\Carbon;
 
+// 🔔 imports for notifications + logging
+use App\Models\User;
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\GenericDatabaseNotification;
+use Illuminate\Support\Facades\Log;
+
 class InventoryController extends Controller
 {
     /**
@@ -79,7 +85,6 @@ class InventoryController extends Controller
         }
 
         // Append to Google Sheets
-        // (If you later implement an "upsert" in GoogleSheetService, you can swap this to update-in-place.)
         $sheetService->appendRow([
             $item->uid ?? '',
             $item->asset_id ?? '',
@@ -92,6 +97,18 @@ class InventoryController extends Controller
             $sheetDate,
             $item->remarks ?? '',
         ]);
+
+        // 🔔 Notify admins & technicals about the new/updated item
+        try {
+            $targets = User::whereIn('role', ['admin', 'technical'])->get();
+            $title   = 'New Inventory Item';
+            $body    = 'Added: '.($item->name ?? 'Unnamed').' (Asset: '.($item->asset_id ?? '—').')';
+            Notification::send($targets, new GenericDatabaseNotification(
+                $title, $body, route('nfc.inventory')
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Notify (item add) failed: '.$e->getMessage());
+        }
 
         return redirect()->route('nfc.inventory')->with('success', 'Item saved successfully.');
     }
@@ -197,10 +214,59 @@ class InventoryController extends Controller
             $item->delete();
             // If you implemented this method in the service, it will remove the row in Sheets too.
             $sheetService->deleteRowByAssetId($asset_id);
+
+            // 🔔 notify ADMINS only that the item was deleted
+            try {
+                $admins = User::where('role', 'admin')->get();
+                Notification::send($admins, new GenericDatabaseNotification(
+                    'Item Deleted',
+                    "Deleted asset_id: {$asset_id}",
+                    route('nfc.inventory')
+                ));
+            } catch (\Throwable $e) {
+                Log::warning('Notify (item delete) failed: '.$e->getMessage());
+            }
+
             return back()->with('success', "Item {$asset_id} deleted successfully.");
         }
 
         return back()->with('error', "Item {$asset_id} not found.");
+    }
+
+    /**
+     * ADMIN action: mark an item as Under Repair,
+     * notify all technical users, and redirect to Technical Dashboard.
+     * Route: PATCH /items/{asset_id}/under-repair  → name: items.markUnderRepair
+     */
+    public function markUnderRepair(string $asset_id)
+    {
+        $item = Item::where('asset_id', $asset_id)->firstOrFail();
+
+        // Only allow when currently Available
+        if (strtolower(trim((string) $item->status)) !== 'available') {
+            return back()->with('error', 'Only available items can be marked as Under Repair.');
+        }
+
+        // Update DB (use your canonical label as per normalizeStatus)
+        $item->status = 'Under Repair';
+        $item->save();
+
+        // 🔔 Notify all technical users
+        try {
+            $techs = User::where('role', 'technical')->get();
+            Notification::send($techs, new GenericDatabaseNotification(
+                'Item Marked Under Repair',
+                "Item {$item->asset_id} ({$item->name}) marked Under Repair.",
+                route('technical.dashboard')
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Notify (under repair) failed: '.$e->getMessage());
+        }
+
+        // Redirect admin to the technical dashboard
+        return redirect()
+            ->route('technical.dashboard')
+            ->with('success', 'Item marked as Under Repair; technical team notified.');
     }
 
     /**

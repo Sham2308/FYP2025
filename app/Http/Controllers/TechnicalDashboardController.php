@@ -3,11 +3,16 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Auth;
+use App\Models\Item;
 
 class TechnicalDashboardController extends Controller
 {
     public function index()
     {
+        // ─────────────────────────────────────────────────────────────
+        // 1) Asset Status Overview (from Google Sheet CSV) — unchanged
+        // ─────────────────────────────────────────────────────────────
         $csvUrl  = env('BORROW_SHEET_CSV');
         $headers = [];
         $rows    = [];
@@ -57,7 +62,7 @@ class TechnicalDashboardController extends Controller
                             ])) {
                                 $counts['repair']++;
                             } elseif (in_array($status, [
-                                'available','in-stock','in stock','idle','retire' // map "retire" to available by default
+                                'available','in-stock','in stock','idle','retire'
                             ])) {
                                 $counts['available']++;
                             }
@@ -65,11 +70,41 @@ class TechnicalDashboardController extends Controller
                     }
                 }
             } catch (\Throwable $e) {
-                // network/timeout errors are ignored; view will show "No data" state
+                // Ignore network/timeout errors; the view can show "No data".
             }
         }
 
-        return view('technical.dashboard', compact('headers', 'rows', 'counts'));
+        // ─────────────────────────────────────────────────────────────
+        // 2) Borrow Items (DB) — show only "Under Repair"
+        //    Keep the overview (above) intact and separate.
+        // ─────────────────────────────────────────────────────────────
+        // If your DB stores "Under Repair" with different casing or underscore,
+        // fetch both variants. We’ll default to the canonical "Under Repair".
+        $borrowItems = Item::where(function ($q) {
+                $q->where('status', 'Under Repair')
+                  ->orWhere('status', 'under_repair');
+            })
+            ->orderByDesc('asset_id')
+            ->get();
+
+        // ─────────────────────────────────────────────────────────────
+        // 3) (Optional) Notifications payload for the bell in the navbar
+        // ─────────────────────────────────────────────────────────────
+        $unread = collect();
+        $unreadCount = 0;
+        if (Auth::check()) {
+            $unread = Auth::user()->unreadNotifications()->limit(10)->get();
+            $unreadCount = $unread->count();
+        }
+
+        return view('technical.dashboard', compact(
+            'headers',
+            'rows',
+            'counts',
+            'borrowItems',
+            'unread',
+            'unreadCount'
+        ));
     }
 
     /**

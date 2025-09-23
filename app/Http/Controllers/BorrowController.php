@@ -8,6 +8,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+// 👇 NEW: imports for notifications
+use App\Models\User;
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\GenericDatabaseNotification;
+
 class BorrowController extends Controller
 {
     public function __construct()
@@ -73,6 +78,19 @@ class BorrowController extends Controller
             'remarks'       => $borrow->remarks ?? '',
         ]);
 
+        // 👉 NEW: notify admins & technicals
+        try {
+            $targets = User::whereIn('role', ['admin', 'technical'])->get();
+            $who     = auth()->user()->name ?? 'A user';
+            $title   = 'New Borrow Request';
+            $body    = "{$who} requested: " . ($item->name ?? 'Unknown') . " (Asset: " . ($item->asset_id ?? '—') . ")";
+            Notification::send($targets, new GenericDatabaseNotification(
+                $title, $body, route('borrow.index')
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Notify (borrow) failed: '.$e->getMessage());
+        }
+
         return redirect()->back()->with('success', 'Borrow saved successfully!');
     }
 
@@ -116,6 +134,19 @@ class BorrowController extends Controller
             'status'        => 'available',
             'remarks'       => $borrow->remarks ?? '',
         ]);
+
+        // 👉 NEW: notify admins & technicals that item is returned
+        try {
+            $targets = User::whereIn('role', ['admin', 'technical'])->get();
+            $who     = auth()->user()->name ?? 'A user';
+            $title   = 'Item Returned';
+            $body    = "{$who} returned: " . ($item->name ?? 'Unknown') . " (UID: {$uid})";
+            Notification::send($targets, new GenericDatabaseNotification(
+                $title, $body, route('history.index')
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Notify (return) failed: '.$e->getMessage());
+        }
 
         return redirect()->back()->with('success', 'Item returned successfully!');
     }
