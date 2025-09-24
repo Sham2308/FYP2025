@@ -1,14 +1,19 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+
+// Controllers
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BorrowController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\ItemImportController;
-use App\Http\Controllers\TechnicalDashboardController; // ← existing
-use App\Http\Controllers\NotificationController;       // ← ADDED (for bell API)
-use App\Notifications\GenericDatabaseNotification;     // ← ADDED (only for /notify-test)
+use App\Http\Controllers\TechnicalDashboardController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ItemStatusController; // ← NEW (for mark-available)
+
+// Notifications
+use App\Notifications\GenericDatabaseNotification;
 
 // ── Home / Welcome ─────────────────────────────────────────────────────
 Route::get('/', function () {
@@ -68,10 +73,16 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'role:technical'])->group(function () {
     Route::get('/technical', [TechnicalDashboardController::class, 'index'])
         ->name('technical.dashboard');
+
+    // Mark item as AVAILABLE (repair finished) — button from "Under Repair" list
+    Route::patch('/items/{asset_id}/mark-available', [ItemStatusController::class, 'markAvailable'])
+        ->where('asset_id', '[A-Za-z0-9\-_]+')
+        ->name('items.markAvailable');
 });
 
 // ── Admin-only ─────────────────────────────────────────────────────────
-Route::middleware(['auth', 'admin'])->group(function () {
+// CHANGED: use 'role:admin' instead of 'admin'
+Route::middleware(['auth', 'role:admin'])->group(function () {
     // Inventory dashboard
     Route::get('/nfc/inventory', [InventoryController::class, 'index'])->name('nfc.inventory');
 
@@ -85,7 +96,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.destroy');
 
-    // 🔧 Mark item as Under Repair (admin triggers this)
+    // Mark item as UNDER REPAIR (admin triggers this)
     Route::patch('/items/{asset_id}/under-repair', [InventoryController::class, 'markUnderRepair'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.markUnderRepair');

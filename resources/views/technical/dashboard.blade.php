@@ -27,9 +27,17 @@
         <section class="card">
             <p class="text-sm text-gray-700">
                 Welcome, {{ $user?->name ?? 'Tech User' }}
-                <span class="text-gray-500">({{ $user->role ?? 'technical' }})</span>
+                <span class="text-gray-500">({{ $user?->role ?? 'technical' }})</span>
             </p>
         </section>
+
+        {{-- Flash messages --}}
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if($errors->any())
+            <div class="alert alert-error">{{ $errors->first() }}</div>
+        @endif
 
         {{-- Status Overview (KPI row + chart) --}}
         <section class="card">
@@ -50,7 +58,10 @@
                 $pRepair    = $pct($counts['repair']    ?? 0);
             @endphp
 
-            <h2 class="text-xl font-semibold mb-4">Asset Status Overview</h2>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold">Asset Status Overview</h2>
+                <span class="text-xs text-gray-500">Source: Google Sheet + DB reconciled</span>
+            </div>
 
             <div class="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2">
                 <div class="shrink-0 w-1"></div>
@@ -59,7 +70,7 @@
                 <div class="snap-start shrink-0 w-[220px] rounded-xl bg-indigo-50 ring-1 ring-indigo-100 p-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-indigo-600 text-lg">🧾</span>
+                            <span class="text-indigo-600 text-lg"></span>
                             <div class="leading-tight">
                                 <p class="text-xs font-medium text-indigo-800">Borrowed</p>
                                 <p class="text-xl font-bold tabular-nums">{{ $counts['borrowed'] ?? 0 }}</p>
@@ -78,7 +89,7 @@
                 <div class="snap-start shrink-0 w-[220px] rounded-xl bg-green-50 ring-1 ring-green-100 p-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-green-600 text-lg">↩️</span>
+                            <span class="text-green-600 text-lg"></span>
                             <div class="leading-tight">
                                 <p class="text-xs font-medium text-green-800">Returned</p>
                                 <p class="text-xl font-bold tabular-nums">{{ $counts['returned'] ?? 0 }}</p>
@@ -97,7 +108,7 @@
                 <div class="snap-start shrink-0 w-[220px] rounded-xl bg-red-50 ring-1 ring-red-100 p-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-red-600 text-lg">🚫</span>
+                            <span class="text-red-600 text-lg"></span>
                             <div class="leading-tight">
                                 <p class="text-xs font-medium text-red-800">Stolen</p>
                                 <p class="text-xl font-bold tabular-nums">{{ $counts['stolen'] ?? 0 }}</p>
@@ -116,7 +127,7 @@
                 <div class="snap-start shrink-0 w-[220px] rounded-xl bg-yellow-50 ring-1 ring-yellow-100 p-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-yellow-600 text-lg">✅</span>
+                            <span class="text-yellow-600 text-lg"></span>
                             <div class="leading-tight">
                                 <p class="text-xs font-medium text-yellow-800">Available</p>
                                 <p class="text-xl font-bold tabular-nums">{{ $counts['available'] ?? 0 }}</p>
@@ -135,7 +146,7 @@
                 <div class="snap-start shrink-0 w-[220px] rounded-xl bg-purple-50 ring-1 ring-purple-100 p-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-purple-600 text-lg">🛠️</span>
+                            <span class="text-purple-600 text-lg"></span>
                             <div class="leading-tight">
                                 <p class="text-xs font-medium text-purple-800">Under Repair</p>
                                 <p class="text-xl font-bold tabular-nums">{{ $counts['repair'] ?? 0 }}</p>
@@ -162,78 +173,68 @@
             </div>
         </section>
 
-        {{-- Borrow Items table (Google Sheet) --}}
+        {{-- Under Repair (DB) --}}
         <section class="card">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold">Borrow Items</h2>
-                <a href="{{ env('BORROW_SHEET_CSV') ? str_replace('output=csv', 'output=html', env('BORROW_SHEET_CSV')) : '#' }}"
-                   target="_blank"
-                   class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700">
-                   Open sheet (web)
-                </a>
+                <h2 class="text-lg font-semibold">Under Repair (DB)</h2>
+                <span class="text-xs text-gray-500">Source: items table</span>
             </div>
 
-            @if(empty($headers))
-                <p class="text-gray-500">No data loaded. Make sure the sheet is <b>Published to web</b> and the
-                    <code>BORROW_SHEET_CSV</code> env is set.</p>
+            @if(($borrowItems ?? collect())->isEmpty())
+                <p class="text-gray-500">No items currently marked <b>under repair</b> in the database.</p>
             @else
                 <div class="overflow-x-auto rounded-xl border">
                     <table class="min-w-full border-collapse text-sm">
                         <thead class="bg-gray-50">
                             <tr>
-                                @foreach($headers as $h)
-                                    <th class="border px-4 py-2 text-left font-semibold text-gray-700">{{ $h }}</th>
-                                @endforeach
-                                <th class="border px-4 py-2 text-left font-semibold text-gray-700">Action</th>
+                                <th class="border px-4 py-2 text-left font-semibold text-gray-700">Asset ID</th>
+                                <th class="border px-4 py-2 text-left font-semibold text-gray-700">Name</th>
+                                <th class="border px-4 py-2 text-left font-semibold text-gray-700">Status</th>
+                                <th class="border px-4 py-2 text-left font-semibold text-gray-700">Remarks</th>
+                                <th class="border px-4 py-2 text-left font-semibold text-gray-700">Updated</th>
+                                <th class="border px-4 py-2 text-left font-semibold text-gray-700">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($rows as $r)
+                            @foreach($borrowItems as $item)
                                 @php
-                                    $row = [];
-                                    foreach ($headers as $i=>$h) { $row[$h] = $r[$i] ?? ''; }
-
-                                    $status = $row['Status'] ?? $row['Action'] ?? '';
-                                    $statusLower = strtolower($status);
-                                    $badgeClasses =
-                                        (str_contains($statusLower, 'available') || str_contains($statusLower, 'returned') || str_contains($statusLower, 'retire'))
-                                            ? 'bg-green-100 text-green-700 ring-green-200'
-                                            : ((str_contains($statusLower, 'borrow') || str_contains($statusLower, 'out'))
-                                                ? 'bg-yellow-100 text-yellow-700 ring-yellow-200'
-                                                : ((str_contains($statusLower, 'repair') || str_contains($statusLower, 'under'))
-                                                    ? 'bg-purple-100 text-purple-700 ring-purple-200'
-                                                    : ((str_contains($statusLower, 'stolen') || str_contains($statusLower, 'stolem') || str_contains($statusLower, 'missing') || str_contains($statusLower, 'lost'))
-                                                        ? 'bg-red-100 text-red-700 ring-red-200'
-                                                        : 'bg-gray-100 text-gray-700 ring-gray-200')));
+                                    $label = method_exists($item, 'getStatusLabelAttribute') ? $item->status_label : ucfirst($item->status);
                                 @endphp
                                 <tr class="odd:bg-white even:bg-gray-50 hover:bg-blue-50/50">
-                                    @foreach($headers as $h)
-                                        @if(in_array(strtolower($h), ['status','action']))
-                                            <td class="border px-4 py-2">
-                                                <span class="px-2.5 py-1 rounded-full text-xs font-medium ring-1 {{ $badgeClasses }}">
-                                                    {{ $row[$h] }}
-                                                </span>
-                                            </td>
-                                        @else
-                                            <td class="border px-4 py-2">{{ $row[$h] }}</td>
-                                        @endif
-                                    @endforeach
-
+                                    <td class="border px-4 py-2 text-left font-medium">{{ $item->asset_id }}</td>
+                                    <td class="border px-4 py-2 text-left">{{ $item->name }}</td>
                                     <td class="border px-4 py-2">
-                                        <button type="button"
-                                            onclick="alert('This is a demo for the sheet view. Make real deletes in your app or sheet workflow.')"
-                                            class="rounded-lg bg-red-600 px-3 py-1.5 text-white text-xs font-semibold hover:bg-red-700">
-                                            Delete
-                                        </button>
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-medium ring-1 bg-purple-100 text-purple-700 ring-purple-200">
+                                            {{ $label }}
+                                        </span>
+                                    </td>
+                                    <td class="border px-4 py-2 text-left">{{ $item->remarks }}</td>
+                                    <td class="border px-4 py-2 text-left">
+                                        {{ optional($item->updated_at)->timezone(config('app.timezone'))->format('Y-m-d H:i') }}
+                                    </td>
+                                    <td class="border px-4 py-2 text-left">
+                                        {{-- Button: mark available --}}
+                                        <form
+                                            action="{{ route('items.markAvailable', $item->asset_id) }}"
+                                            method="POST"
+                                            onsubmit="this.querySelector('button[type=submit]').disabled=true"
+                                        >
+                                            @csrf
+                                            @method('PATCH')
+                                            <button
+                                                type="submit"
+                                                class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                                                title="Mark this item as available (repair completed)"
+                                            >
+                                                Mark as Available
+                                            </button>
+                                        </form>
                                     </td>
                                 </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">
-                    Source: Google Sheet (Published to web → CSV). Update <code>BORROW_SHEET_CSV</code> to change tab or range.
-                </p>
             @endif
         </section>
     </div>
@@ -247,9 +248,9 @@
 
       const dataBorrowed = Number("{{ $counts['borrowed'] ?? 0 }}");
       const dataReturned = Number("{{ $counts['returned'] ?? 0 }}");
-      const dataStolen   = Number("{{ $counts['stolen'] ?? 0 }}");
-      const dataAvail    = Number("{{ $counts['available'] ?? 0 }}");
-      const dataRepair   = Number("{{ $counts['repair'] ?? 0 }}");
+      const dataStolen   = Number("{{ $counts['stolen']   ?? 0 }}");
+      const dataAvail    = Number("{{ $counts['available']?? 0 }}");
+      const dataRepair   = Number("{{ $counts['repair']   ?? 0 }}");
 
       const values = [dataBorrowed, dataReturned, dataStolen, dataAvail, dataRepair];
       const total = values.reduce((a,b)=>a+b, 0);

@@ -66,11 +66,12 @@
                         @csrf
                         <div class="form-row">
                             <div style="flex:1; display:flex; gap:6px;">
+                                <!-- UID kept required + readonly -->
                                 <input type="text" id="uid" name="uid" placeholder="UID" required readonly>
                                 <button type="button" id="scan-btn" class="btn btn-green">Scan Sticker</button>
                             </div>
                             <input type="text" name="asset_id" placeholder="Asset ID" required>
-                            <input type="text" name="name" placeholder="Name">
+                            <input type="text" name="name" placeholder="Name" required>
                             <input type="text" name="detail" placeholder="Detail">
                         </div>
                         <div class="form-row">
@@ -81,12 +82,13 @@
                         <div class="form-row">
                             <input type="date" name="purchase_date">
                             <input type="text" name="remarks" placeholder="Remarks">
-                            <select name="status">
+                            <select name="status" required>
                                 <option value="available">Available</option>
                                 <option value="borrowed">Borrowed</option>
-                                <option value="under_repair">Under Repair</option>
+                                <option value="retire">Retire</option>
+                                <option value="under repair">Under Repair</option>
                                 <option value="stolen">Stolen</option>
-                                <option value="missing_lost">Missing/Lost</option>
+                                <option value="missing/lost">Missing/Lost</option>
                             </select>
                         </div>
                         <div class="form-row" style="justify-content:flex-end;">
@@ -118,8 +120,8 @@
                 <tbody>
                     @forelse($items as $item)
                         @php
-                            $statusLower = strtolower((string)($item->status ?? ''));
-                            $isAvailable = $statusLower === 'available';
+                            $status = (string)($item->status ?? '');
+                            $isAvailable = $status === 'available';
                         @endphp
                         <tr>
                             <td>{{ $item->uid ?? '—' }}</td>
@@ -130,12 +132,12 @@
                             <td>{{ $item->type_id ?? '—' }}</td>
                             <td>{{ $item->serial_no ?? '—' }}</td>
                             <td>
-                                @if($isAvailable)
+                                @if($status === 'available')
                                     <span class="badge badge-good">Available</span>
-                                @elseif($statusLower === 'under repair' || $statusLower === 'under_repair')
+                                @elseif($status === 'under repair')
                                     <span class="badge badge-warn">Under Repair</span>
                                 @else
-                                    <span class="badge badge-na">{{ $item->status ?? '—' }}</span>
+                                    <span class="badge badge-na">{{ $status ?: '—' }}</span>
                                 @endif
                             </td>
                             <td>{{ $item->purchase_date ?? '—' }}</td>
@@ -143,7 +145,7 @@
                             <td>
                                 <div class="actions">
                                     @if($isAvailable)
-                                        {{-- Mark Under Repair (admin-only route) --}}
+                                        {{-- ADMIN: Mark Under Repair --}}
                                         <form method="POST"
                                               action="{{ route('items.markUnderRepair', $item->asset_id) }}"
                                               onsubmit="return confirm('Mark this item as Under Repair?')">
@@ -153,7 +155,7 @@
                                         </form>
                                     @endif
 
-                                    {{-- Delete --}}
+                                    {{-- ADMIN: Delete --}}
                                     <form method="POST" action="{{ route('items.destroy', $item->asset_id) }}">
                                         @csrf
                                         @method('DELETE')
@@ -172,17 +174,14 @@
 
     {{-- Page script --}}
     <script>
-    document.getElementById("openModal").onclick = () => {
-        document.getElementById("itemModal").style.display = "flex";
-    };
-    document.getElementById("closeModal").onclick = () => {
-        document.getElementById("itemModal").style.display = "none";
-    };
-    window.onclick = (e) => {
-        if (e.target.id === "itemModal") {
-            document.getElementById("itemModal").style.display = "none";
-        }
-    };
+    const openBtn = document.getElementById("openModal");
+    const closeBtn = document.getElementById("closeModal");
+    const modal = document.getElementById("itemModal");
+
+    if (openBtn) openBtn.onclick = () => { modal.style.display = "flex"; };
+    if (closeBtn) closeBtn.onclick = () => { modal.style.display = "none"; };
+    window.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; };
+
     const scanBtn = document.getElementById("scan-btn");
     if (scanBtn) {
         scanBtn.addEventListener("click", async () => {
