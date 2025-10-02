@@ -9,6 +9,7 @@ class Borrow extends Model
     protected $table = 'borrows';
 
     protected $fillable = [
+        'transaction_id',
         'uid',
         'user_id',
         'borrower_name',

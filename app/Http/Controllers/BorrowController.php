@@ -20,53 +20,56 @@ class BorrowController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'uid'           => 'required|string',
+            'card_uid'      => 'required|string',
             'user_id'       => 'required|string',
             'borrower_name' => 'nullable|string|max:191',
             'borrow_date'   => 'nullable|date',
             'due_date'      => 'nullable|date',
             'remarks'       => 'nullable|string',
+            'items'         => 'required|array',
+            'items.*.uid'   => 'required|string',
         ]);
 
-        $item = Item::where('uid', $request->uid)->first();
+        foreach ($request->items as $itemData) {
+            $item = Item::where('uid', $itemData['uid'])->first();
 
-        if (!$item) {
-            return redirect()->back()->with('error', 'Item with this UID not found.');
+            if (!$item) {
+                continue; // skip missing item
+            }
+
+            if ($item->status !== 'available') {
+                continue; // skip unavailable
+            }
+
+            $borrow = Borrow::create([
+                'uid'           => $item->uid,
+                'user_id'       => $request->user_id,
+                'borrower_name' => $request->borrower_name,
+                'borrow_date'   => $request->borrow_date ?? now()->toDateString(),
+                'due_date'      => $request->due_date,
+                'remarks'       => $request->remarks,
+                'borrowed_at'   => now(),
+            ]);
+
+            $item->update(['status' => 'borrowed']);
+
+            $this->mirrorToSheet([
+                'type'          => 'borrow',
+                'timestamp'     => now()->format('Y-m-d H:i:s'),
+                'borrow_id'     => $borrow->id,
+                'user_id'       => $borrow->user_id,
+                'borrower_name' => $borrow->borrower_name,
+                'uid'           => $borrow->uid,
+                'asset_id'      => optional($item)->asset_id,
+                'name'          => optional($item)->name,
+                'borrow_date'   => optional($borrow->borrow_date)->format('Y-m-d'),
+                'return_date'   => optional($borrow->due_date)->format('Y-m-d'),
+                'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
+                'returned_at'   => '',
+                'status'        => 'borrowed',
+                'remarks'       => $borrow->remarks,
+            ]);
         }
-
-        if ($item->status !== 'available') {
-            return redirect()->back()->with('error', 'Item is not available for borrowing.');
-        }
-
-        $borrow = Borrow::create([
-            'uid'           => $request->uid,
-            'user_id'       => $request->user_id,
-            'borrower_name' => $request->borrower_name,
-            'borrow_date'   => $request->borrow_date ?? now()->toDateString(),
-            'due_date'      => $request->due_date,
-            'remarks'       => $request->remarks,
-            'borrowed_at'   => now(),
-        ]);
-
-        $item->update(['status' => 'borrowed']);
-
-        $this->mirrorToSheet([
-            'type'          => 'borrow',
-            'timestamp'     => now()->format('Y-m-d H:i:s'),
-            'borrow_id'     => $borrow->id,
-            'user_id'       => $borrow->user_id,
-            'borrower_name' => $borrow->borrower_name,
-            'uid'           => $borrow->uid,
-            'asset_id'      => optional($item)->asset_id,
-            'name'          => optional($item)->name,
-            'borrow_date'   => optional($borrow->borrow_date)->format('Y-m-d'),
-            'return_date'   => optional($borrow->due_date)->format('Y-m-d'),
-            'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
-            'returned_at'   => '',
-            'status'        => 'borrowed',
-            'remarks'       => $borrow->remarks,
-        ]);
-
 
         return redirect()->back()->with('success', 'Borrow saved successfully!');
     }
@@ -110,7 +113,6 @@ class BorrowController extends Controller
             'status'        => 'available',
             'remarks'       => $borrow->remarks,
         ]);
-
 
         return redirect()->back()->with('success', 'Item returned successfully!');
     }
@@ -157,19 +159,17 @@ class BorrowController extends Controller
         ]);
     }
 
-
-    // ✅ Make sure this matches your route list
     public function getUserByUid($cardUid)
     {
         $service = new \App\Services\GoogleSheetService();
-        $response = $service->getValues('Users!A:C'); // ✅ use helper method
+        $response = $service->getValues('Users!A:C');
         $values = $response->getValues();
 
         $studentId = null;
         $name = null;
 
         foreach ($values as $index => $row) {
-            if ($index === 0) continue; // skip header
+            if ($index === 0) continue;
             if (isset($row[0]) && trim($row[0]) === trim($cardUid)) {
                 $studentId = $row[1] ?? null;
                 $name      = $row[2] ?? null;

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register User</title>
+    <link rel="icon" type="image/png" href="{{ asset('pblogo (2).png') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
@@ -19,8 +20,8 @@
             <div class="input-group">
                 <input type="text" id="uid" name="uid" class="form-control"
                        value="{{ $uid ?? '' }}" readonly required>
-                <!-- 🔹 Button triggers startScan() -->
-                <button type="button" class="btn btn-outline-primary" onclick="startScan()">Scan Card</button>
+                <!-- 🔹 Button triggers startRegisterScan() -->
+                <button type="button" class="btn btn-outline-primary" onclick="startRegisterScan()">Scan Card</button>
             </div>
         </div>
 
@@ -40,37 +41,41 @@
 </div>
 
 <script>
-// 🔹 Called when Scan Card button is clicked
-function startScan() {
-    console.log("Scan button clicked"); // check console
-    fetch("/api/start-scan", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        }
-    })
-    .then(res => res.json())
-    .then(data => {
-        console.log("Scan started:", data);
-    })
-    .catch(err => console.error("Error:", err));
-}
+async function startRegisterScan() {
+    console.log("🔹 Register Scan button clicked");
 
-// 🔹 Poll Laravel every second to see if UID arrived
-let uidFilled = false;
-setInterval(() => {
-    if (uidFilled) return; // stop once filled
-    fetch("/api/get-uid")
-        .then(res => res.json())
-        .then(data => {
-            console.log("UID poll:", data); // debug
+    // Tell Laravel/ESP32 to expect register scan
+    await fetch("/api/request-register-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    alert("Please tap your card to register...");
+
+    let uid = null;
+    // 🔹 Poll up to 30s (30 attempts, 1s apart)
+    for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+            const res = await fetch("/api/read-register-uid");
+            const data = await res.json();
+            console.log("📡 Register UID poll:", data);
             if (data.uid) {
-                document.getElementById("uid").value = data.uid;
-                uidFilled = true;
+                uid = data.uid;
+                break;
             }
-        })
-        .catch(err => console.error("Poll error:", err));
-}, 1000);
+        } catch (err) {
+            console.error("Poll error:", err);
+        }
+    }
+
+    if (!uid) {
+        alert("❌ No card detected, please try again.");
+    } else {
+        console.log("✅ UID detected:", uid);
+        document.getElementById("uid").value = uid;
+    }
+}
 </script>
 
 </body>
