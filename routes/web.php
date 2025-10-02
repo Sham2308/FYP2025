@@ -11,6 +11,8 @@ use App\Http\Controllers\ItemImportController;
 use App\Http\Controllers\TechnicalDashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ItemStatusController; // ← NEW (for mark-available)
+use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ReportController;
 
 // Notifications
 use App\Notifications\GenericDatabaseNotification;
@@ -34,6 +36,24 @@ Route::redirect('/nfc-inventory', '/nfc/inventory');
 Route::get('/borrow', [BorrowController::class, 'index'])->name('borrow.index');
 Route::get('/history', [HistoryController::class, 'index'])->name('history.index');
 
+// Public endpoint so guests can scan/fetch item details on the borrow page
+Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
+
+// ── Guest-friendly Chat (no auth; throttled) ───────────────────────────
+Route::middleware(['throttle:60,1'])->group(function () {
+    Route::get('/chat/messages',  [ChatController::class, 'index'])->name('chat.index');  // guests OK
+    Route::post('/chat/messages', [ChatController::class, 'store'])->name('chat.store');  // guests OK
+});
+
+// ── Reports (PUBLIC: guests can open & submit) ─────────────────────────
+Route::get('/reports/create', [ReportController::class, 'create'])->name('reports.create');
+Route::post('/reports', [ReportController::class, 'store'])
+    ->middleware('throttle:20,1') // rate-limit submissions
+    ->name('reports.store');
+
+// (optional pretty alias)
+Route::redirect('/report', '/reports/create')->name('report.alias');
+
 // ── Auth-only (any logged-in user) ─────────────────────────────────────
 Route::middleware('auth')->group(function () {
     // Profile
@@ -41,11 +61,10 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Borrow actions
+    // Borrow actions (mutating)
     Route::post('/borrow', [BorrowController::class, 'store'])->name('borrow.store');
     Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnItem'])->name('borrow.return');
     Route::delete('/borrow/{id}', [BorrowController::class, 'destroy'])->name('borrow.destroy');
-    Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
 
     // History: import from Google Sheets
     Route::post('/history/import/google', [HistoryController::class, 'importFromGoogleSheet'])
@@ -101,6 +120,18 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.markUnderRepair');
 });
+
+// Admin → Reports (strictly admins, with prefix + names)
+Route::middleware(['auth', 'role:admin'])
+    ->prefix('admin/reports')
+    ->name('admin.reports.')
+    ->group(function () {
+        Route::get('/', [ReportController::class,'adminIndex'])->name('index');
+        Route::get('/{report}', [ReportController::class,'show'])->whereNumber('report')->name('show');
+        Route::patch('/{report}/status', [ReportController::class,'updateStatus'])->whereNumber('report')->name('updateStatus');
+        Route::get('/{report}/attachments/{index}', [ReportController::class,'downloadAttachment'])
+            ->whereNumber('report')->whereNumber('index')->name('attachment');
+    });
 
 // Breeze / Fortify authentication routes
 require __DIR__.'/auth.php';
