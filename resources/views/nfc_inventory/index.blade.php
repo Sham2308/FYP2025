@@ -174,6 +174,52 @@
 
     {{-- Page script --}}
     <script>
+    /* === Add logo beside "TapNBorrow" in the blue navbar (no layout edits) === */
+    (function () {
+        const addBrandLogo = () => {
+            // Look for the main nav (works with Breeze or custom header)
+            const nav = document.querySelector('nav') || document.querySelector('header');
+            if (!nav) return;
+
+            // Find the element that literally shows "TapNBorrow"
+            let brandEl = null;
+            const candidates = nav.querySelectorAll('a, span, div');
+            for (const el of candidates) {
+                const t = (el.textContent || '').trim();
+                if (t === 'TapNBorrow') { brandEl = el; break; }
+            }
+            // Fallback: first link on the far-left
+            if (!brandEl) brandEl = nav.querySelector('a');
+
+            if (!brandEl || brandEl.querySelector('img.brand-logo')) return;
+
+            const img = document.createElement('img');
+            img.src = "{{ asset('images/icon-logo.png') }}";
+            img.alt = "TapNBorrow";
+            img.className = "brand-logo";
+            img.style.height = "22px";
+            img.style.width  = "22px";
+            img.style.objectFit = "contain";
+            img.style.marginRight = "8px";
+
+            // Ensure the container lays out icon + text nicely
+            const style = getComputedStyle(brandEl);
+            if (style.display === 'inline' || style.display === 'inline-block') {
+                brandEl.style.display = 'inline-flex';
+            } else if (style.display === 'block') {
+                brandEl.style.display = 'flex';
+            }
+            brandEl.style.alignItems = 'center';
+            brandEl.insertBefore(img, brandEl.firstChild);
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', addBrandLogo);
+        } else {
+            addBrandLogo();
+        }
+    })();
+
     const openBtn = document.getElementById("openModal");
     const closeBtn = document.getElementById("closeModal");
     const modal = document.getElementById("itemModal");

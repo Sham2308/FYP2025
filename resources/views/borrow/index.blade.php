@@ -1,14 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Borrow Item</title>
-    <link rel="icon" type="image/png" href="{{ asset('pblogo (2).png') }}">
+    <title>TapNBorrow</title>
+    <link rel="icon" type="image/png" href="{{ asset('images/main-logo.png') }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
         body { margin:0; font-family: system-ui, Arial, sans-serif; background:#ffffff; color:#111; font-size:14px; }
         header { display:flex; justify-content:space-between; align-items:center;
                  padding:14px 30px; background:#2563eb; color:#fff; }
-        header .logo { font-size:20px; font-weight:700; letter-spacing:0.5px; }
+        header .logo {
+            display:flex;
+            align-items:center;
+            gap:8px;
+            font-size:20px;
+            font-weight:700;
+            letter-spacing:0.5px;
+        }
+        header .logo img { height:24px; width:auto; }
         header nav a { color:#fff; text-decoration:none; margin-left:20px; font-weight:600; }
         header nav a:hover { text-decoration:underline; }
         h2 { text-align:center; margin:24px 0 8px; font-size:22px; }
@@ -68,7 +76,11 @@
 
     <!-- Header -->
     <header>
-        <div class="logo">TapNBorrow</div>
+        <div class="logo">
+            <img src="{{ asset('images/icon-logo.png') }}" alt="TapNBorrow logo">
+            <span>TapNBorrow</span>
+        </div>
+
         <nav>
             <a href="/">Home</a>
             <a href="/borrow">Borrow</a>

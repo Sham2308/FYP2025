@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register User</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    {{-- Favicon: public/images/main2-logo.png --}}
+    @php
+        $fav = asset('images/main2-logo.png');
+        $ver = file_exists(public_path('images/main2-logo.png')) ? filemtime(public_path('images/main2-logo.png')) : time();
+    @endphp
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ $fav }}?v={{ $ver }}">
+    <link rel="shortcut icon" href="{{ $fav }}?v={{ $ver }}">
+    <link rel="apple-touch-icon" href="{{ $fav }}?v={{ $ver }}">
 </head>
 <body class="bg-light">
 

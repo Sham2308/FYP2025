@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Report an Issue</title>
-    <link rel="icon" type="image/png" href="{{ asset('pblogo (2).png') }}">
+    <title>TapNBorrow</title>
+    <link rel="icon" type="image/png" href="{{ asset('images/main-logo.png') }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
         :root{
-            --brand:#1f6d50;     /* header green */
+            --brand:#2563eb;     /* header blue (changed from green) */
             --bg:#f4f7f6;        /* page bg */
             --card:#ffffff;      /* card bg */
             --text:#0f172a;      /* dark text */
@@ -18,7 +18,8 @@
         *{box-sizing:border-box}
         body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
         header{background:var(--brand);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:14px 24px}
-        header .brand{font-weight:700;letter-spacing:.3px}
+        header .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.3px} /* made flex to hold logo + text */
+        header .brand img{height:24px;width:auto;display:block} /* logo beside text */
         header nav a{color:#fff;text-decoration:none;margin-left:18px;font-weight:600;opacity:.95}
         header nav a:hover{opacity:1;text-decoration:underline}
         .wrap{max-width:820px;margin:36px auto;padding:0 16px}
@@ -49,7 +50,10 @@
 </head>
 <body>
 <header>
-    <div class="brand">TapNBorrow</div>
+    <div class="brand">
+        <img src="{{ asset('images/icon-logo.png') }}" alt="TapNBorrow logo">
+        <span>TapNBorrow</span>
+    </div>
     <nav>
         <a href="/">Home</a>
         <a href="/borrow">Borrow</a>

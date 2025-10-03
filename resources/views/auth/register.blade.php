@@ -100,4 +100,23 @@
             if (el && !el.value) el.value = 'FAKE-UID-123456';
         });
     </script>
+
+    <script>
+        // Set/replace favicon to main2-logo.png (shows beside "TapNBorrow" in the tab)
+        (function () {
+            const href = "{{ asset('images/main2-logo.png') }}";
+            function ensureFavicon(rel) {
+                let link = document.querySelector(`link[rel="${rel}"]`);
+                if (!link) {
+                    link = document.createElement('link');
+                    link.setAttribute('rel', rel);
+                    document.head.appendChild(link);
+                }
+                link.type = 'image/png';
+                link.href = href;
+            }
+            ensureFavicon('icon');
+            ensureFavicon('shortcut icon');
+        })();
+    </script>
 </x-guest-layout>

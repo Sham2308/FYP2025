@@ -66,19 +66,19 @@
             <div class="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2">
                 <div class="shrink-0 w-1"></div>
 
-                {{-- Borrowed --}}
-                <div class="snap-start shrink-0 w-[220px] rounded-xl bg-indigo-50 ring-1 ring-indigo-100 p-3">
+                {{-- Borrowed (changed to blue theme) --}}
+                <div class="snap-start shrink-0 w-[220px] rounded-xl bg-blue-50 ring-1 ring-blue-100 p-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-indigo-600 text-lg"></span>
+                            <span class="text-blue-600 text-lg"></span>
                             <div class="leading-tight">
-                                <p class="text-xs font-medium text-indigo-800">Borrowed</p>
+                                <p class="text-xs font-medium text-blue-800">Borrowed</p>
                                 <p class="text-xl font-bold tabular-nums">{{ $counts['borrowed'] ?? 0 }}</p>
                             </div>
                         </div>
                         <div class="relative h-10 w-10">
-                            <div class="absolute inset-0 rounded-full" style="background: conic-gradient(#2563eb {{ $pBorrowed * 3.6 }}deg, #e5e7eb 0deg)"></div>
-                            <div class="absolute inset-[3px] flex items-center justify-center rounded-full bg-white text-[10px] font-bold text-indigo-700">
+                            <div class="absolute inset-0 rounded-full" style="background: conic-gradient(#1d4ed8 {{ $pBorrowed * 3.6 }}deg, #e5e7eb 0deg)"></div>
+                            <div class="absolute inset-[3px] flex items-center justify-center rounded-full bg-white text-[10px] font-bold text-blue-700">
                                 {{ $pBorrowed }}%
                             </div>
                         </div>
@@ -261,13 +261,15 @@
         return;
       }
 
+      const BLUE = '#1d4ed8'; // updated blue to match your nav
+
       new Chart(ctx, {
         type: 'pie',
         data: {
           labels: ['Borrowed', 'Returned', 'Stolen', 'Available', 'Under Repair'],
           datasets: [{
             data: values,
-            backgroundColor: ['#2563eb','#16a34a','#dc2626','#f59e0b','#7c3aed'],
+            backgroundColor: [BLUE,'#16a34a','#dc2626','#f59e0b','#7c3aed'],
             borderWidth: 0
           }]
         },
@@ -281,5 +283,26 @@
         }
       });
     })();
+
+    // --- Inject logo beside "TapNBorrow" in the top nav (no other files touched) ---
+    document.addEventListener('DOMContentLoaded', function () {
+      const anchors = Array.from(document.querySelectorAll('nav a, header a'));
+      const brand = anchors.find(a => a.textContent.trim() === 'TapNBorrow');
+      if (brand && !brand.querySelector('img[data-brand-logo]')) {
+        const img = document.createElement('img');
+        img.src = "{{ asset('images/icon-logo.png') }}";
+        img.alt = "TapNBorrow";
+        img.setAttribute('data-brand-logo', '1');
+        img.style.width = '22px';
+        img.style.height = '22px';
+        img.style.display = 'inline-block';
+        img.style.marginRight = '8px';
+        img.style.verticalAlign = 'middle';
+        brand.style.display = 'inline-flex';
+        brand.style.alignItems = 'center';
+        brand.style.gap = '8px';
+        brand.prepend(img);
+      }
+    });
     </script>
 </x-app-layout>

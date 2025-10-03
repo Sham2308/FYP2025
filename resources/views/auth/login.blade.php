@@ -1,15 +1,40 @@
 <!-- resources/views/auth/login.blade.php -->
 <x-guest-layout>
+
+    <!-- Fix B: scoped CSS so input text is visible on white background -->
+    <style>
+      /* Scope to just this card */
+      .auth-card input,
+      .auth-card textarea,
+      .auth-card select {
+        color: #0f172a !important;                 /* dark text */
+        -webkit-text-fill-color: #0f172a !important; /* Chrome/Safari */
+      }
+      .auth-card input::placeholder {
+        color: #9ca3af !important;                 /* readable placeholder */
+        opacity: 1;
+      }
+      /* Keep autofill readable and avoid yellow bg contrast issues */
+      .auth-card input:-webkit-autofill,
+      .auth-card textarea:-webkit-autofill,
+      .auth-card select:-webkit-autofill {
+        -webkit-text-fill-color: #0f172a !important;
+        box-shadow: 0 0 0 1000px #ffffff inset !important;
+      }
+    </style>
+
     <div class="">
         <!-- CARD WRAPPER: tweak width & border here -->
         <div class="w-full max-w-[480px]">
-            <div class="bg-white border-[3px] border-gray-300 rounded-2xl shadow-lg p-8">
+            <div class="bg-white border-2 border-gray-300 rounded-xl shadow-lg p-6 auth-card">
 
-                <!-- Logo / Title -->
+                <!-- Logo -->
                 <div class="text-center mb-6">
-                    <h1 class="text-4xl font-extrabold text-blue-600 tracking-wide">
-                        TapNBorrow
-                    </h1>
+                    <img
+                        src="{{ asset('images/main2-logo.png') }}"
+                        alt="TapNBorrow"
+                        class="mx-auto h-15 w-auto md:h-20 object-contain"
+                    >
                 </div>
 
                 <!-- Session Status -->
