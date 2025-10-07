@@ -84,8 +84,6 @@
         <nav>
             <a href="/">Home</a>
             <a href="/borrow">Borrow</a>
-            <a href="{{ route('nfc.inventory') }}">Inventory</a>
-            <a href="{{ route('history.index') }}">History</a>
             <a href="{{ route('reports.create') }}">Report</a>
         </nav>
     </header>

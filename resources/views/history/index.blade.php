@@ -30,6 +30,64 @@
 </head>
 <body>
 
+    @php
+    use Carbon\Carbon;
+
+    /**
+     * Safely format a date-like value.
+     * - Handles empty values
+     * - Handles UNIX epoch seconds
+     * - Handles Google Sheets/Excel serial dates
+     * - Parses common date strings
+     * - Returns '-' for non-dates (e.g., UIDs like 2284DC4A)
+     */
+    $safeDate = function ($v, $fmt = 'Y-m-d H:i') {
+        try {
+            if ($v === null || $v === '') return '-';
+
+            // If already a DateTime/Carbon
+            if ($v instanceof \DateTimeInterface) {
+                return Carbon::instance($v)
+                    ->tz(config('app.timezone', 'Asia/Brunei'))
+                    ->format($fmt);
+            }
+
+            // Numeric cases
+            if (is_numeric($v)) {
+                $num = (float) $v;
+
+                // UNIX epoch seconds (rough window 2001–2100)
+                if ($num > 1000000000 && $num < 4102444800) {
+                    return Carbon::createFromTimestampUTC((int)$num)
+                        ->tz(config('app.timezone', 'Asia/Brunei'))
+                        ->format($fmt);
+                }
+
+                // Google Sheets / Excel serial date (days since 1899-12-30)
+                if ($num > 25569 && $num < 600000) {
+                    $seconds = (int) round(($num - 25569) * 86400);
+                    return Carbon::createFromTimestampUTC($seconds)
+                        ->tz(config('app.timezone', 'Asia/Brunei'))
+                        ->format($fmt);
+                }
+            }
+
+            // String parse for common formats (safe)
+            $s = (string)$v;
+            if (preg_match('/\d/', $s)) {
+                $c = Carbon::make($s); // returns null if not parseable
+                if ($c) {
+                    return $c->tz(config('app.timezone', 'Asia/Brunei'))->format($fmt);
+                }
+            }
+
+            return '-';
+        } catch (\Throwable $e) {
+            return '-';
+        }
+    };
+    @endphp
+
     <!-- Header -->
     <header>
         <a href="/" class="brand">
@@ -83,35 +141,25 @@
                             <th>Remarks</th>
                         </tr>
                     </thead>
-                <tbody>
-                    @foreach($history as $row)
-                    <tr>
-                        <td>
-                            {{ !empty($row['Timestamp']) ? \Carbon\Carbon::parse($row['Timestamp'])->format('Y-m-d H:i') : '-' }}
-                        </td>
-                        <td>{{ $row['BorrowID'] ?? '-' }}</td>
-                        <td>{{ $row['UserID'] ?? '-' }}</td>
-                        <td>{{ $row['BorrowerName'] ?? '-' }}</td>
-                        <td>{{ $row['UID'] ?? '-' }}</td>
-                        <td>{{ $row['AssetID'] ?? '-' }}</td>
-                        <td>{{ $row['Name'] ?? '-' }}</td>
-                        <td>
-                            {{ !empty($row['BorrowDate']) ? \Carbon\Carbon::parse($row['BorrowDate'])->format('Y-m-d') : '-' }}
-                        </td>
-                        <td>
-                            {{ !empty($row['ReturnDate']) ? \Carbon\Carbon::parse($row['ReturnDate'])->format('Y-m-d') : '-' }}
-                        </td>
-                        <td>
-                            {{ !empty($row['BorrowedAt']) ? \Carbon\Carbon::parse($row['BorrowedAt'])->format('Y-m-d H:i') : '-' }}
-                        </td>
-                        <td>
-                            {{ !empty($row['ReturnedAt']) ? \Carbon\Carbon::parse($row['ReturnedAt'])->format('Y-m-d H:i') : '-' }}
-                        </td>
-                        <td>{{ $row['Status'] ?? '-' }}</td>
-                        <td>{{ $row['Remarks'] ?? '-' }}</td>
-                    </tr>
-                    @endforeach
-                </tbody>
+                    <tbody>
+                        @foreach($history as $row)
+                        <tr>
+                            <td>{{ $safeDate($row['Timestamp']  ?? null, 'Y-m-d H:i') }}</td>
+                            <td>{{ $row['BorrowID'] ?? '-' }}</td>
+                            <td>{{ $row['UserID'] ?? '-' }}</td>
+                            <td>{{ $row['BorrowerName'] ?? '-' }}</td>
+                            <td>{{ $row['UID'] ?? '-' }}</td>
+                            <td>{{ $row['AssetID'] ?? '-' }}</td>
+                            <td>{{ $row['Name'] ?? '-' }}</td>
+                            <td>{{ $safeDate($row['BorrowDate'] ?? null, 'Y-m-d') }}</td>
+                            <td>{{ $safeDate($row['ReturnDate'] ?? null, 'Y-m-d') }}</td>
+                            <td>{{ $safeDate($row['BorrowedAt'] ?? null, 'Y-m-d H:i') }}</td>
+                            <td>{{ $safeDate($row['ReturnedAt'] ?? null, 'Y-m-d H:i') }}</td>
+                            <td>{{ $row['Status'] ?? '-' }}</td>
+                            <td>{{ $row['Remarks'] ?? '-' }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
                 </table>
             @endif
 
