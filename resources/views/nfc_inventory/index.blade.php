@@ -26,6 +26,14 @@
         .tech-page .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:50; }
         .tech-page .modal-content { background:#fff; padding:20px; border-radius:8px; width:90%; max-width:800px; }
         .tech-page .actions { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+
+        /* Dropdown styles */
+        .edit-dropdown { position:relative; display:inline-block; }
+        .edit-btn { background:#2563eb; color:#fff; border:none; padding:8px 12px; border-radius:10px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
+        .dd-menu { position:absolute; right:0; top:42px; min-width:200px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 10px 25px rgba(0,0,0,.08); padding:6px; display:none; z-index:20; text-align:left; }
+        .dd-item, .dd-form-btn { display:block; width:100%; padding:10px 12px; border-radius:8px; text-decoration:none; color:#111; background:transparent; border:none; text-align:left; cursor:pointer; }
+        .dd-item:hover, .dd-form-btn:hover { background:#f3f4f6; }
+        .dd-danger { color:#b91c1c; }
     </style>
 
     {{-- Optional page header slot (shows under the blue nav) --}}
@@ -122,6 +130,7 @@
                         @php
                             $status = (string)($item->status ?? '');
                             $isAvailable = $status === 'available';
+                            $isUnderRepair = $status === 'under repair';
                         @endphp
                         <tr>
                             <td>{{ $item->uid ?? '—' }}</td>
@@ -132,9 +141,9 @@
                             <td>{{ $item->type_id ?? '—' }}</td>
                             <td>{{ $item->serial_no ?? '—' }}</td>
                             <td>
-                                @if($status === 'available')
+                                @if($isAvailable)
                                     <span class="badge badge-good">Available</span>
-                                @elseif($status === 'under repair')
+                                @elseif($isUnderRepair)
                                     <span class="badge badge-warn">Under Repair</span>
                                 @else
                                     <span class="badge badge-na">{{ $status ?: '—' }}</span>
@@ -143,24 +152,50 @@
                             <td>{{ $item->purchase_date ?? '—' }}</td>
                             <td>{{ $item->remarks ?? '—' }}</td>
                             <td>
-                                <div class="actions">
-                                    @if($isAvailable)
-                                        {{-- ADMIN: Mark Under Repair --}}
-                                        <form method="POST"
-                                              action="{{ route('items.markUnderRepair', $item->asset_id) }}"
-                                              onsubmit="return confirm('Mark this item as Under Repair?')">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="btn btn-purple">Under Repair</button>
-                                        </form>
-                                    @endif
+                                {{-- One "Edit" button with dropdown --}}
+                                <div class="edit-dropdown">
+                                    <button class="edit-btn" type="button" data-dd="menu-{{ $item->asset_id }}">
+                                        Edit
+                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                    <div id="menu-{{ $item->asset_id }}" class="dd-menu">
+                                        {{-- Edit details page (assumes resource route exists) --}}
+                                        <a class="dd-item" href="{{ route('items.edit', $item->asset_id) }}"> Edit details</a>
 
-                                    {{-- ADMIN: Delete --}}
-                                    <form method="POST" action="{{ route('items.destroy', $item->asset_id) }}">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="btn btn-red" onclick="return confirm('Delete this item?')">Delete</button>
-                                    </form>
+                                        {{-- Toggle Under Repair / Available --}}
+                                        @if($isAvailable)
+                                            <form method="POST" action="{{ route('items.markUnderRepair', $item->asset_id) }}" style="margin:0;">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button class="dd-form-btn" type="submit"
+                                                    onclick="return confirm('Mark this item as Under Repair?')">
+                                                     Mark as Under Repair
+                                                </button>
+                                            </form>
+                                        @elseif($isUnderRepair)
+                                            {{-- If you don't have this route yet, create it or change to your route name --}}
+                                            <form method="POST" action="{{ route('items.markAvailable', $item->asset_id) }}" style="margin:0;">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button class="dd-form-btn" type="submit"
+                                                    onclick="return confirm('Mark this item as Available?')">
+                                                    ✅ Mark as Available
+                                                </button>
+                                            </form>
+                                        @endif
+
+                                        {{-- Delete --}}
+                                        <form method="POST" action="{{ route('items.destroy', $item->asset_id) }}" style="margin:0;">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="dd-form-btn dd-danger" type="submit"
+                                                onclick="return confirm('Delete this item? This cannot be undone.')">
+                                                 Delete
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -177,20 +212,16 @@
     /* === Add logo beside "TapNBorrow" in the blue navbar (no layout edits) === */
     (function () {
         const addBrandLogo = () => {
-            // Look for the main nav (works with Breeze or custom header)
             const nav = document.querySelector('nav') || document.querySelector('header');
             if (!nav) return;
 
-            // Find the element that literally shows "TapNBorrow"
             let brandEl = null;
             const candidates = nav.querySelectorAll('a, span, div');
             for (const el of candidates) {
                 const t = (el.textContent || '').trim();
                 if (t === 'TapNBorrow') { brandEl = el; break; }
             }
-            // Fallback: first link on the far-left
             if (!brandEl) brandEl = nav.querySelector('a');
-
             if (!brandEl || brandEl.querySelector('img.brand-logo')) return;
 
             const img = document.createElement('img');
@@ -202,7 +233,6 @@
             img.style.objectFit = "contain";
             img.style.marginRight = "8px";
 
-            // Ensure the container lays out icon + text nicely
             const style = getComputedStyle(brandEl);
             if (style.display === 'inline' || style.display === 'inline-block') {
                 brandEl.style.display = 'inline-flex';
@@ -253,5 +283,23 @@
             }
         });
     }
+
+    // === Dropdown handling (toggle + outside click close) ===
+    document.addEventListener('click', function (e) {
+        // close any open menus if clicking outside
+        if (!e.target.closest('.edit-dropdown')) {
+            document.querySelectorAll('.dd-menu').forEach(m => m.style.display = 'none');
+            return;
+        }
+        // toggle the clicked one
+        const btn = e.target.closest('button[data-dd]');
+        if (btn) {
+            const id = btn.getAttribute('data-dd');
+            const menu = document.getElementById(id);
+            const isOpen = menu && menu.style.display === 'block';
+            document.querySelectorAll('.dd-menu').forEach(m => m.style.display = 'none');
+            if (menu) menu.style.display = isOpen ? 'none' : 'block';
+        }
+    });
     </script>
 </x-app-layout>

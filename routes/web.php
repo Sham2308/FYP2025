@@ -111,6 +111,16 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // Items CRUD (asset_id is your string PK)
     Route::post('/items', [InventoryController::class, 'store'])->name('items.store');
+
+    // Items edit/update (needed by the new dropdown "✏️ Edit details")
+    Route::get('/items/{asset_id}/edit', [InventoryController::class, 'edit'])
+        ->where('asset_id', '[A-Za-z0-9\-_]+')
+        ->name('items.edit');
+
+    Route::patch('/items/{asset_id}', [InventoryController::class, 'update'])
+        ->where('asset_id', '[A-Za-z0-9\-_]+')
+        ->name('items.update');
+
     Route::delete('/items/{asset_id}', [InventoryController::class, 'destroy'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.destroy');

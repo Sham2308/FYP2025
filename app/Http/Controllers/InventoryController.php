@@ -26,6 +26,117 @@ class InventoryController extends Controller
     }
 
     /**
+     * Show edit form for a single item.
+     * Route: GET /items/{asset_id}/edit  → name: items.edit
+     */
+    public function edit(string $asset_id)
+    {
+        $item = Item::where('asset_id', $asset_id)->firstOrFail();
+        return view('nfc_inventory.edit', compact('item'));
+    }
+
+    /**
+     * Update an item (DB + optionally Google Sheets).
+     * Route: PATCH /items/{asset_id}  → name: items.update
+     */
+    public function update(Request $request, string $asset_id, GoogleSheetService $sheetService)
+    {
+        $item = Item::where('asset_id', $asset_id)->firstOrFail();
+
+        $data = $request->validate([
+            'uid'           => ['nullable', 'string', 'max:191'],
+            'asset_id'      => ['required', 'string', 'max:191'],
+            'name'          => ['required', 'string', 'max:191'],
+            'detail'        => ['nullable', 'string'],
+            'accessories'   => ['nullable', 'string'],
+            'type_id'       => ['nullable', 'string', 'max:191'],
+            'serial_no'     => ['nullable', 'string', 'max:191'],
+            'status'        => ['required', 'string'],
+            'purchase_date' => ['nullable', 'date'],
+            'remarks'       => ['nullable', 'string', 'max:191'],
+        ]);
+
+        // Canonicalize status for DB (lowercase matches enum)
+        $data['status'] = $this->normalizeStatus($data['status'] ?? null) ?? strtolower((string)$item->status ?? 'available');
+
+        // Normalize purchase_date for DB (Y-m-d)
+        $dbDate = null;
+        if (!empty($data['purchase_date'])) {
+            try {
+                $dbDate = Carbon::parse($data['purchase_date'])->format('Y-m-d');
+            } catch (\Throwable $e) {
+                $dbDate = null;
+            }
+        }
+        $data['purchase_date'] = $dbDate;
+
+        // If asset_id has changed, ensure it doesn't collide with another record
+        $newAssetId = $data['asset_id'];
+        if ($newAssetId !== $item->asset_id) {
+            $exists = Item::where('asset_id', $newAssetId)->exists();
+            if ($exists) {
+                return back()
+                    ->withInput()
+                    ->with('error', "Asset ID '{$newAssetId}' is already in use.");
+            }
+        }
+
+        // Persist changes
+        $item->uid           = $data['uid']           ?? null;
+        $item->asset_id      = $newAssetId;
+        $item->name          = $data['name'];
+        $item->detail        = $data['detail']        ?? null;
+        $item->accessories   = $data['accessories']   ?? null;
+        $item->type_id       = $data['type_id']       ?? null;
+        $item->serial_no     = $data['serial_no']     ?? null;
+        $item->status        = $data['status'];
+        $item->purchase_date = $data['purchase_date'] ?? null;
+        $item->remarks       = $data['remarks']       ?? null;
+        $item->save();
+
+        // Try to reflect the change in Google Sheets if your service supports it
+        try {
+            // Prefer an update if available; otherwise you might implement inside the service.
+            if (method_exists($sheetService, 'updateRowByAssetId')) {
+                $sheetStatus = $this->titleCaseStatus($item->status);
+                $sheetDate   = '';
+                if (!empty($item->purchase_date)) {
+                    try { $sheetDate = Carbon::parse($item->purchase_date)->format('d/m/Y'); } catch (\Throwable $e) { $sheetDate = ''; }
+                }
+
+                $sheetService->updateRowByAssetId($asset_id, [
+                    $item->uid ?? '',
+                    $item->asset_id ?? '',
+                    $item->name ?? '',
+                    $item->detail ?? '',
+                    $item->accessories ?? '',
+                    $item->type_id ?? '',
+                    $item->serial_no ?? '',
+                    $sheetStatus,
+                    $sheetDate,
+                    $item->remarks ?? '',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Sheet update skipped/failed: '.$e->getMessage());
+        }
+
+        // 🔔 Notify admins & technicals about the update
+        try {
+            $targets = User::whereIn('role', ['admin', 'technical'])->get();
+            $title   = 'Inventory Item Updated';
+            $body    = 'Updated: '.($item->name ?? 'Unnamed').' (Asset: '.($item->asset_id ?? '—').')';
+            Notification::send($targets, new GenericDatabaseNotification(
+                $title, $body, route('nfc.inventory')
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Notify (item update) failed: '.$e->getMessage());
+        }
+
+        return redirect()->route('nfc.inventory')->with('success', 'Item updated successfully.');
+    }
+
+    /**
      * Handle "Add Item" form: save to DB and append to Google Sheets.
      */
     public function store(Request $request, GoogleSheetService $sheetService)
