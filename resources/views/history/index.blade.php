@@ -9,7 +9,6 @@
             display:flex; justify-content:space-between; align-items:center;
             padding:14px 30px; background:#2563eb; color:#fff;
         }
-        /* brand (logo + wordmark) */
         .brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:#fff; }
         .brand img { height:26px; width:auto; display:block; }
         header .logo { font-size:20px; font-weight:700; letter-spacing:0.5px; }
@@ -33,54 +32,29 @@
     @php
     use Carbon\Carbon;
 
-    /**
-     * Safely format a date-like value.
-     * - Handles empty values
-     * - Handles UNIX epoch seconds
-     * - Handles Google Sheets/Excel serial dates
-     * - Parses common date strings
-     * - Returns '-' for non-dates (e.g., UIDs like 2284DC4A)
-     */
     $safeDate = function ($v, $fmt = 'Y-m-d H:i') {
         try {
             if ($v === null || $v === '') return '-';
-
-            // If already a DateTime/Carbon
             if ($v instanceof \DateTimeInterface) {
-                return Carbon::instance($v)
-                    ->tz(config('app.timezone', 'Asia/Brunei'))
-                    ->format($fmt);
+                return Carbon::instance($v)->tz(config('app.timezone', 'Asia/Brunei'))->format($fmt);
             }
-
-            // Numeric cases
             if (is_numeric($v)) {
-                $num = (float) $v;
-
-                // UNIX epoch seconds (rough window 2001–2100)
+                $num = (float)$v;
                 if ($num > 1000000000 && $num < 4102444800) {
                     return Carbon::createFromTimestampUTC((int)$num)
-                        ->tz(config('app.timezone', 'Asia/Brunei'))
-                        ->format($fmt);
+                        ->tz(config('app.timezone', 'Asia/Brunei'))->format($fmt);
                 }
-
-                // Google Sheets / Excel serial date (days since 1899-12-30)
                 if ($num > 25569 && $num < 600000) {
                     $seconds = (int) round(($num - 25569) * 86400);
                     return Carbon::createFromTimestampUTC($seconds)
-                        ->tz(config('app.timezone', 'Asia/Brunei'))
-                        ->format($fmt);
+                        ->tz(config('app.timezone', 'Asia/Brunei'))->format($fmt);
                 }
             }
-
-            // String parse for common formats (safe)
             $s = (string)$v;
             if (preg_match('/\d/', $s)) {
-                $c = Carbon::make($s); // returns null if not parseable
-                if ($c) {
-                    return $c->tz(config('app.timezone', 'Asia/Brunei'))->format($fmt);
-                }
+                $c = Carbon::make($s);
+                if ($c) return $c->tz(config('app.timezone', 'Asia/Brunei'))->format($fmt);
             }
-
             return '-';
         } catch (\Throwable $e) {
             return '-';
@@ -111,6 +85,33 @@
             <form action="{{ route('history.import.google') }}" method="POST">
                 @csrf
                 <button type="submit" class="btn-import">Import from Google Sheets</button>
+            </form>
+
+            <!-- ✅ Filter Bar -->
+            <form method="GET" action="{{ route('history.index') }}" style="margin-bottom: 12px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                    <input type="text" name="user" placeholder="Search UserID or Name" value="{{ request('user') }}"
+                        style="padding:6px 10px; border:1px solid #ccc; border-radius:6px; flex:1; min-width:180px;">
+                    
+                    <select name="status" style="padding:6px 10px; border:1px solid #ccc; border-radius:6px;">
+                        <option value="">All Status</option>
+                        <option value="borrowed" {{ request('status') == 'borrowed' ? 'selected' : '' }}>Borrowed</option>
+                        <option value="available" {{ request('status') == 'available' ? 'selected' : '' }}>Available</option>
+                    </select>
+
+                    <input type="date" name="from" value="{{ request('from') }}"
+                        style="padding:6px 10px; border:1px solid #ccc; border-radius:6px;">
+                    <span>to</span>
+                    <input type="date" name="to" value="{{ request('to') }}"
+                        style="padding:6px 10px; border:1px solid #ccc; border-radius:6px;">
+
+                    <button type="submit" style="background:#2563eb; color:#fff; border:none; padding:6px 14px; border-radius:6px; font-weight:600; cursor:pointer;">
+                        Filter
+                    </button>
+                    <a href="{{ route('history.index') }}" style="padding:6px 14px; border:1px solid #ccc; border-radius:6px; text-decoration:none; color:#111;">
+                        Reset
+                    </a>
+                </div>
             </form>
 
             <!-- ✅ Show error -->

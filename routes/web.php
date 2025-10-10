@@ -87,9 +87,9 @@ Route::middleware('auth')->group(function () {
     })->name('notify.test');
 });
 
-// ── Technical-only ─────────────────────────────────────────────────────
-// Requires 'role' middleware registered in bootstrap/app.php
-Route::middleware(['auth', 'role:technical'])->group(function () {
+// ── Admin + Technical ──────────────────────────────────────────────────
+// Now both roles can access these routes
+Route::middleware(['auth', 'role:admin,technical'])->group(function () {
     Route::get('/technical', [TechnicalDashboardController::class, 'index'])
         ->name('technical.dashboard');
 
@@ -100,7 +100,6 @@ Route::middleware(['auth', 'role:technical'])->group(function () {
 });
 
 // ── Admin-only ─────────────────────────────────────────────────────────
-// CHANGED: use 'role:admin' instead of 'admin'
 Route::middleware(['auth', 'role:admin'])->group(function () {
     // Inventory dashboard
     Route::get('/nfc/inventory', [InventoryController::class, 'index'])->name('nfc.inventory');

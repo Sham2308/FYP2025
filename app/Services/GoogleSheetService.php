@@ -115,4 +115,40 @@ class GoogleSheetService
             throw new \RuntimeException('Google Sheets API not configured (CSV-only mode or missing credentials).');
         }
     }
+
+    public function updateRowByAssetId(string $assetId, array $values)
+{
+    if (!$this->isReady()) return;
+
+    $service = $this->service;
+    $spreadsheetId = $this->spreadsheetId;
+    $sheetName = 'Items'; // change this to your actual sheet tab name if different
+
+    try {
+        $range = $sheetName . '!A:Z';
+        $response = $service->spreadsheets_values->get($spreadsheetId, $range);
+        $rows = $response->getValues();
+
+        if (!$rows) return;
+
+        $targetRow = null;
+        foreach ($rows as $index => $row) {
+            if (isset($row[1]) && trim($row[1]) === $assetId) {
+                $targetRow = $index + 1; // Sheets rows are 1-indexed
+                break;
+            }
+        }
+
+        if ($targetRow) {
+            $range = sprintf('%s!A%d:J%d', $sheetName, $targetRow, $targetRow);
+            $body = new \Google\Service\Sheets\ValueRange(['values' => [$values]]);
+            $params = ['valueInputOption' => 'USER_ENTERED'];
+            $service->spreadsheets_values->update($spreadsheetId, $range, $body, $params);
+        }
+    } catch (\Throwable $e) {
+        \Log::warning('Google Sheet updateRowByAssetId failed: '.$e->getMessage());
+    }
 }
+
+}
+

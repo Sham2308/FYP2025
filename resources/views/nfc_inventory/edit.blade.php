@@ -55,14 +55,17 @@
                     <label class="block text-sm font-medium mb-1">Remarks</label>
                     <input name="remarks" value="{{ old('remarks',$item->remarks) }}" class="w-full border rounded p-2">
                 </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Status</label>
-                    <select name="status" class="w-full border rounded p-2" required>
-                        @foreach(['available','borrowed','retire','under repair','stolen','missing/lost'] as $st)
-                            <option value="{{ $st }}" @selected(old('status',$item->status)===$st)>{{ ucfirst($st) }}</option>
-                        @endforeach
-                    </select>
-                </div>
+               <div>
+                <label class="block text-sm font-medium mb-1">Status</label>
+                <select name="status" class="w-full border rounded p-2" required>
+                    @foreach(['available','borrowed','retire','under repair','stolen','missing/lost'] as $st)
+                        <option value="{{ $st }}" @selected(old('status', $item->status) === $st)>
+                            {{ ucwords($st) }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
             </div>
 
             <div class="mt-6 flex justify-end gap-2">
