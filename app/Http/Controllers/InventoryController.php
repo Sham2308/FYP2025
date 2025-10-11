@@ -17,11 +17,30 @@ use Illuminate\Support\Facades\Log;
 class InventoryController extends Controller
 {
     /**
-     * Show the Inventory dashboard.
+     * Show the Inventory dashboard (with search + status filter).
      */
-    public function index()
+    public function index(Request $request)
     {
-        $items = Item::orderByDesc('asset_id')->get();
+        $query = Item::query();
+
+        // 🔍 Text Search (case-insensitive, matches name, UID, asset_id)
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $query->where(function ($q) use ($search) {
+                $q->whereRaw('LOWER(name) LIKE ?', ['%' . strtolower($search) . '%'])
+                  ->orWhereRaw('LOWER(asset_id) LIKE ?', ['%' . strtolower($search) . '%'])
+                  ->orWhereRaw('LOWER(uid) LIKE ?', ['%' . strtolower($search) . '%']);
+            });
+        }
+
+        // 🏷️ Status filter
+        if ($request->filled('status')) {
+            $query->where('status', strtolower(trim($request->input('status'))));
+        }
+
+        // 📋 Sort newest asset_id first
+        $items = $query->orderByDesc('asset_id')->get();
+
         return view('nfc_inventory.index', compact('items'));
     }
 
@@ -96,7 +115,6 @@ class InventoryController extends Controller
 
         // Try to reflect the change in Google Sheets if your service supports it
         try {
-            // Prefer an update if available; otherwise you might implement inside the service.
             if (method_exists($sheetService, 'updateRowByAssetId')) {
                 $sheetStatus = $this->titleCaseStatus($item->status);
                 $sheetDate   = '';
@@ -154,7 +172,6 @@ class InventoryController extends Controller
             'remarks'       => ['nullable', 'string', 'max:191'],
         ]);
 
-        // canonicalize status for DB (lowercase matches enum)
         $data['status'] = $this->normalizeStatus($data['status'] ?? null) ?? 'available';
 
         // Format purchase_date for DB (Y-m-d)
@@ -167,7 +184,6 @@ class InventoryController extends Controller
             }
         }
 
-        // Save to DB (upsert by asset_id)
         $item = Item::updateOrCreate(
             ['asset_id' => $data['asset_id']],
             [
@@ -177,13 +193,12 @@ class InventoryController extends Controller
                 'accessories'   => $data['accessories'] ?? null,
                 'type_id'       => $data['type_id'] ?? null,
                 'serial_no'     => $data['serial_no'] ?? null,
-                'status'        => $data['status'],   // lowercase for DB enum
+                'status'        => $data['status'],
                 'purchase_date' => $dbDate,
                 'remarks'       => $data['remarks'] ?? null,
             ]
         );
 
-        // Prepare values for Google Sheets (date as d/m/Y) + Title Case status for readability
         $sheetDate = '';
         if (!empty($dbDate)) {
             try {
@@ -194,7 +209,6 @@ class InventoryController extends Controller
         }
         $sheetStatus = $this->titleCaseStatus($item->status);
 
-        // Append to Google Sheets
         $sheetService->appendRow([
             $item->uid ?? '',
             $item->asset_id ?? '',
@@ -203,12 +217,11 @@ class InventoryController extends Controller
             $item->accessories ?? '',
             $item->type_id ?? '',
             $item->serial_no ?? '',
-            $sheetStatus, // Title Case for sheet
+            $sheetStatus,
             $sheetDate,
             $item->remarks ?? '',
         ]);
 
-        // 🔔 Notify admins & technicals about the new/updated item
         try {
             $targets = User::whereIn('role', ['admin', 'technical'])->get();
             $title   = 'New Inventory Item';
@@ -225,7 +238,6 @@ class InventoryController extends Controller
 
     /**
      * Import Items from Google Sheets (published as CSV).
-     * Clears old items and replaces with sheet data.
      */
     public function importFromGoogleSheet()
     {
@@ -251,10 +263,8 @@ class InventoryController extends Controller
             return back()->with('error', 'CSV appears to have no data rows.');
         }
 
-        // Normalize headers
         $headers = array_map(fn($h) => strtolower(trim((string)$h)), array_shift($rows));
 
-        // Map sheet headers → DB fields
         $mapping = [
             'uid'           => 'uid',
             'asset_id'      => 'asset_id',
@@ -268,7 +278,6 @@ class InventoryController extends Controller
             'remarks'       => 'remarks',
         ];
 
-        // Clear old items
         Item::truncate();
 
         $inserted = 0;
@@ -278,22 +287,18 @@ class InventoryController extends Controller
 
             $rowData = array_combine($headers, $row);
 
-            // Build DB data
             $data = [];
             foreach ($mapping as $sheetCol => $dbField) {
                 $data[$dbField] = $rowData[$sheetCol] ?? null;
             }
 
-            // Normalize status for DB (lowercase canonical)
             $data['status'] = $this->normalizeStatus($data['status'] ?? null) ?? 'available';
 
-            // Normalize purchase_date (d/m/Y in sheet → Y-m-d for DB)
             if (!empty($data['purchase_date'])) {
                 try {
                     $dt = Carbon::createFromFormat('d/m/Y', trim($data['purchase_date']));
                     $data['purchase_date'] = $dt->format('Y-m-d');
                 } catch (\Throwable $e) {
-                    // try a generic parse (Y-m-d or others)
                     try {
                         $data['purchase_date'] = Carbon::parse($data['purchase_date'])->format('Y-m-d');
                     } catch (\Throwable $e2) {
@@ -322,14 +327,12 @@ class InventoryController extends Controller
         if ($item) {
             $item->delete();
 
-            // If implemented, remove from Sheets too.
             try {
                 $sheetService->deleteRowByAssetId($asset_id);
             } catch (\Throwable $e) {
                 Log::warning('Sheet delete skipped/failed: '.$e->getMessage());
             }
 
-            // 🔔 notify ADMINS only that the item was deleted
             try {
                 $admins = User::where('role', 'admin')->get();
                 Notification::send($admins, new GenericDatabaseNotification(
@@ -349,22 +352,18 @@ class InventoryController extends Controller
 
     /**
      * ADMIN action: mark an item as Under Repair and notify technicals.
-     * Route: PATCH /items/{asset_id}/under-repair  → name: items.markUnderRepair
      */
     public function markUnderRepair(string $asset_id)
     {
         $item = Item::where('asset_id', $asset_id)->firstOrFail();
 
-        // Only allow when currently available (case-insensitive)
         if (strtolower(trim((string) $item->status)) !== 'available') {
             return back()->with('error', 'Only available items can be marked as Under Repair.');
         }
 
-        // Update DB to canonical lowercase
         $item->status = 'under repair';
         $item->save();
 
-        // 🔔 Notify all technical users
         try {
             $techs = User::where('role', 'technical')->get();
             Notification::send($techs, new GenericDatabaseNotification(
@@ -376,30 +375,24 @@ class InventoryController extends Controller
             Log::warning('Notify (under repair) failed: '.$e->getMessage());
         }
 
-        // ✅ Refresh admin inventory instead of redirecting to /technical (prevents 403)
         return redirect()
             ->route('nfc.inventory')
             ->with('success', 'Item marked as Under Repair.');
     }
 
-    /**
-     * Map incoming status values to canonical lowercase enum values for DB.
-     */
     private function normalizeStatus($status)
     {
         if (!$status) return null;
 
         $s = strtolower(trim((string) $status));
-        $s = str_replace(['_', '-'], ' ', $s);   // handle under_repair / under-repair
+        $s = str_replace(['_', '-'], ' ', $s);
         $s = preg_replace('/\s+/', ' ', $s);
 
-        // Normalize missing/lost variants
         if ($s === 'missing lost' || $s === 'missing/ lost' || $s === 'missing / lost') {
             return 'missing/lost';
         }
         if ($s === 'missing/lost') return 'missing/lost';
 
-        // Map to canonical set
         switch ($s) {
             case 'available':     return 'available';
             case 'borrowed':      return 'borrowed';
@@ -410,13 +403,10 @@ class InventoryController extends Controller
                 if (strpos($s, 'missing') !== false && strpos($s, 'lost') !== false) {
                     return 'missing/lost';
                 }
-                return $s; // fallback: let DB enum enforce validity
+                return $s;
         }
     }
 
-    /**
-     * For Sheets readability: convert canonical DB values to Title Case.
-     */
     private function titleCaseStatus(string $status): string
     {
         if ($status === 'missing/lost') return 'Missing/Lost';

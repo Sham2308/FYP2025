@@ -34,6 +34,15 @@
         .dd-item, .dd-form-btn { display:block; width:100%; padding:10px 12px; border-radius:8px; text-decoration:none; color:#111; background:transparent; border:none; text-align:left; cursor:pointer; }
         .dd-item:hover, .dd-form-btn:hover { background:#f3f4f6; }
         .dd-danger { color:#b91c1c; }
+
+        /* Filter form */
+        .filter-form { display:flex; gap:10px; margin:10px 0 14px; flex-wrap:wrap; align-items:center; }
+        .filter-form input, .filter-form select { padding:8px; border:1px solid #cbd5e1; border-radius:6px; }
+        .filter-form button { padding:8px 14px; border:none; border-radius:6px; cursor:pointer; font-weight:600; }
+        .filter-form .btn-blue { background:#2563eb; color:white; }
+        .filter-form .btn-blue:hover { background:#1d4ed8; }
+        .filter-form .btn-gray { background:#6b7280; color:white; text-decoration:none; display:inline-block; }
+        .filter-form .btn-gray:hover { background:#4b5563; }
     </style>
 
     {{-- Optional page header slot (shows under the blue nav) --}}
@@ -56,7 +65,6 @@
             <!-- Top actions -->
             <div class="card">
                 <div class="top-actions">
-                    <!-- Import from Google Sheets (POST) -->
                     <form action="{{ route('items.import.google') }}" method="POST" class="inline">
                         @csrf
                         <button type="submit" class="btn btn-green">Import from Google Sheets</button>
@@ -74,7 +82,6 @@
                         @csrf
                         <div class="form-row">
                             <div style="flex:1; display:flex; gap:6px;">
-                                <!-- UID kept required + readonly -->
                                 <input type="text" id="uid" name="uid" placeholder="UID" required readonly>
                                 <button type="button" id="scan-btn" class="btn btn-green">Scan Sticker</button>
                             </div>
@@ -109,6 +116,23 @@
 
             <!-- Inventory Items Table -->
             <h3 style="margin-top:20px;">Inventory Items</h3>
+
+            <!-- 🔍 Filter Form Added Here -->
+            <form method="GET" action="{{ route('nfc.inventory') }}" class="filter-form" id="filterForm">
+                <input type="text" name="search" id="searchInput" placeholder="Search by name, UID, or asset ID..." value="{{ request('search') }}">
+                <select name="status" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="available" {{ request('status')=='available' ? 'selected' : '' }}>Available</option>
+                    <option value="borrowed" {{ request('status')=='borrowed' ? 'selected' : '' }}>Borrowed</option>
+                    <option value="retire" {{ request('status')=='retire' ? 'selected' : '' }}>Retire</option>
+                    <option value="under repair" {{ request('status')=='under repair' ? 'selected' : '' }}>Under Repair</option>
+                    <option value="stolen" {{ request('status')=='stolen' ? 'selected' : '' }}>Stolen</option>
+                    <option value="missing/lost" {{ request('status')=='missing/lost' ? 'selected' : '' }}>Missing/Lost</option>
+                </select>
+                <button type="submit" class="btn btn-blue">Filter</button>
+                <a href="{{ route('nfc.inventory') }}" class="btn btn-gray">Clear</a>
+            </form>
+
             <table>
                 <thead>
                     <tr>
@@ -152,19 +176,16 @@
                             <td>{{ $item->purchase_date ?? '—' }}</td>
                             <td>{{ $item->remarks ?? '—' }}</td>
                             <td>
-                                {{-- One "Edit" button with dropdown --}}
                                 <div class="edit-dropdown">
                                     <button class="edit-btn" type="button" data-dd="menu-{{ $item->asset_id }}">
                                         Edit
-                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
                                             <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/>
                                         </svg>
                                     </button>
                                     <div id="menu-{{ $item->asset_id }}" class="dd-menu">
-                                        {{-- Edit details page (assumes resource route exists) --}}
                                         <a class="dd-item" href="{{ route('items.edit', $item->asset_id) }}"> Edit details</a>
 
-                                        {{-- Toggle Under Repair / Available --}}
                                         @if($isAvailable)
                                             <form method="POST" action="{{ route('items.markUnderRepair', $item->asset_id) }}" style="margin:0;">
                                                 @csrf
@@ -175,7 +196,6 @@
                                                 </button>
                                             </form>
                                         @elseif($isUnderRepair)
-                                            {{-- If you don't have this route yet, create it or change to your route name --}}
                                             <form method="POST" action="{{ route('items.markAvailable', $item->asset_id) }}" style="margin:0;">
                                                 @csrf
                                                 @method('PATCH')
@@ -186,7 +206,6 @@
                                             </form>
                                         @endif
 
-                                        {{-- Delete --}}
                                         <form method="POST" action="{{ route('items.destroy', $item->asset_id) }}" style="margin:0;">
                                             @csrf
                                             @method('DELETE')
@@ -209,47 +228,18 @@
 
     {{-- Page script --}}
     <script>
-    /* === Add logo beside "TapNBorrow" in the blue navbar (no layout edits) === */
-    (function () {
-        const addBrandLogo = () => {
-            const nav = document.querySelector('nav') || document.querySelector('header');
-            if (!nav) return;
-
-            let brandEl = null;
-            const candidates = nav.querySelectorAll('a, span, div');
-            for (const el of candidates) {
-                const t = (el.textContent || '').trim();
-                if (t === 'TapNBorrow') { brandEl = el; break; }
-            }
-            if (!brandEl) brandEl = nav.querySelector('a');
-            if (!brandEl || brandEl.querySelector('img.brand-logo')) return;
-
-            const img = document.createElement('img');
-            img.src = "{{ asset('images/icon-logo.png') }}";
-            img.alt = "TapNBorrow";
-            img.className = "brand-logo";
-            img.style.height = "22px";
-            img.style.width  = "22px";
-            img.style.objectFit = "contain";
-            img.style.marginRight = "8px";
-
-            const style = getComputedStyle(brandEl);
-            if (style.display === 'inline' || style.display === 'inline-block') {
-                brandEl.style.display = 'inline-flex';
-            } else if (style.display === 'block') {
-                brandEl.style.display = 'flex';
-            }
-            brandEl.style.alignItems = 'center';
-            brandEl.insertBefore(img, brandEl.firstChild);
-        };
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', addBrandLogo);
-        } else {
-            addBrandLogo();
+    // === Filter auto-submit ===
+    document.getElementById('statusFilter')?.addEventListener('change', () => {
+        document.getElementById('filterForm').submit();
+    });
+    document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('filterForm').submit();
         }
-    })();
+    });
 
+    // === Rest of your existing JS (unchanged) ===
     const openBtn = document.getElementById("openModal");
     const closeBtn = document.getElementById("closeModal");
     const modal = document.getElementById("itemModal");
@@ -284,14 +274,11 @@
         });
     }
 
-    // === Dropdown handling (toggle + outside click close) ===
     document.addEventListener('click', function (e) {
-        // close any open menus if clicking outside
         if (!e.target.closest('.edit-dropdown')) {
             document.querySelectorAll('.dd-menu').forEach(m => m.style.display = 'none');
             return;
         }
-        // toggle the clicked one
         const btn = e.target.closest('button[data-dd]');
         if (btn) {
             const id = btn.getAttribute('data-dd');
