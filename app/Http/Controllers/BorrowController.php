@@ -2,243 +2,317 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Item;
-use App\Models\Borrow;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-// 👇 NEW: imports for notifications
-use App\Models\User;
-use Illuminate\Support\Facades\Notification;
-use App\Notifications\GenericDatabaseNotification;
-
 class BorrowController extends Controller
 {
-    public function __construct()
-    {
-        // Guests can view the borrow page; actions require auth
-        $this->middleware('auth')->except(['index']);
-    }
-
     public function index()
     {
-        $borrows = Borrow::with('item')->latest()->take(10)->get();
-        $items = Item::orderBy('asset_id')->get();
-        return view('borrow.index', compact('borrows', 'items'));
+        $items = \App\Models\Item::orderBy('asset_id')->get();
+        $recent = $this->readRecentFromSheet(); // array of rows (newest first)
+
+        return view('borrow.index', [
+            'items'  => $items,
+            'recent' => $recent,
+        ]);
+    }
+    /**
+     * 🔍 Fetch user info from Google Sheet by Card UID
+     * Used by the scanner to auto-fill Student ID and Name
+     */
+    public function getUserByUid($cardUid)
+    {
+        try {
+            $gs = app(\App\Services\GoogleSheetService::class);
+            if (!$gs->isReady()) {
+                return response()->json(['error' => 'Google Sheets API not configured'], 500);
+            }
+
+            // Read Users sheet (UID | StudentID | Name)
+            $values = $gs->getValues('Users!A:C')->getValues();
+            if (!$values || count($values) <= 1) {
+                return response()->json(['error' => 'No user data in sheet'], 404);
+            }
+
+            foreach ($values as $i => $row) {
+                if ($i === 0) continue; // Skip header row
+                if (isset($row[0]) && trim($row[0]) === trim($cardUid)) {
+                    return response()->json([
+                        'uid'        => $cardUid,
+                        'student_id' => $row[1] ?? '',
+                        'name'       => $row[2] ?? '',
+                    ]);
+                }
+            }
+
+            return response()->json(['error' => 'User not found in Google Sheet'], 404);
+        } catch (\Throwable $e) {
+            \Log::error('getUserByUid failed: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+    /**
+     * Fetch an item by UID from Google Sheets
+     * Used for scanning NFC/QR sticker
+     */
+    public function fetchItem($uid)
+    {
+        try {
+            $gs = app(\App\Services\GoogleSheetService::class);
+            if (!$gs->isReady()) {
+                return response()->json(['error' => 'Google Sheets API not configured'], 500);
+            }
+
+            // Fetch all item data
+            $values = $gs->getValues('Items!A:E')->getValues();
+            if (!$values || count($values) <= 1) {
+                return response()->json(['error' => 'No items in Google Sheet'], 404);
+            }
+
+            // Find item by UID (Column A)
+            foreach ($values as $i => $row) {
+                if ($i === 0) continue; // skip header
+                if (isset($row[0]) && trim($row[0]) === trim($uid)) {
+                    return response()->json([
+                        'uid'       => $row[0] ?? '',
+                        'asset_id'  => $row[1] ?? '',
+                        'name'      => $row[2] ?? '',
+                        'status'    => $row[3] ?? '',
+                        'purchased' => $row[4] ?? '',
+                    ]);
+                }
+            }
+
+            return response()->json(['error' => 'Item not found in Google Sheet'], 404);
+        } catch (\Throwable $e) {
+            \Log::error('fetchItem failed: '.$e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
-    public function store(Request $request)
+    public function publicStore(Request $request)
     {
         $request->validate([
-            'uid'           => 'required|string',
+            'card_uid'      => 'required|string',
             'user_id'       => 'required|string',
-            'borrower_name' => 'nullable|string|max:191',
+            'borrower_name' => 'required|string',
             'borrow_date'   => 'nullable|date',
             'due_date'      => 'nullable|date',
             'remarks'       => 'nullable|string',
+            'items'         => 'required|array',
+            'items.*.uid'   => 'required|string',
         ]);
 
-        $item = Item::where('uid', $request->uid)->first();
-
-        if (!$item) {
-            return redirect()->back()->with('error', 'Item with this UID not found.');
-        }
-
-        if ($item->status !== 'available') {
-            return redirect()->back()->with('error', 'Item is not available for borrowing.');
-        }
-
-        $borrow = Borrow::create([
-            'uid'           => $request->uid,
-            'user_id'       => $request->user_id,
-            'borrower_name' => $request->borrower_name,
-            'borrow_date'   => $request->borrow_date ?? now()->toDateString(),
-            'due_date'      => $request->due_date,
-            'remarks'       => $request->remarks,
-            'borrowed_at'   => now(),
-        ]);
-
-        $item->update(['status' => 'borrowed']);
-
-        $this->mirrorToSheet([
-            'type'          => 'borrow',
-            'timestamp'     => now()->format('Y-m-d H:i:s'),
-            'borrow_id'     => $borrow->id,
-            'user_id'       => $borrow->user_id,
-            'borrower_name' => $borrow->borrower_name,
-            'uid'           => $borrow->uid,
-            'asset_id'      => optional($item)->asset_id,
-            'name'          => optional($item)->name,
-            'borrow_date'   => optional($borrow->borrow_date)->format('Y-m-d'),
-            'return_date'   => optional($borrow->due_date)->format('Y-m-d'),
-            'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
-            'returned_at'   => '',
-            'status'        => 'borrowed',
-            'remarks'       => $borrow->remarks ?? '',
-        ]);
-
-        // 👉 NEW: notify admins & technicals
         try {
-            $targets = User::whereIn('role', ['admin', 'technical'])->get();
-            $who     = auth()->user()->name ?? 'A user';
-            $title   = 'New Borrow Request';
-            $body    = "{$who} requested: " . ($item->name ?? 'Unknown') . " (Asset: " . ($item->asset_id ?? '—') . ")";
-            Notification::send($targets, new GenericDatabaseNotification(
-                $title, $body, route('borrow.index')
-            ));
-        } catch (\Throwable $e) {
-            Log::warning('Notify (borrow) failed: '.$e->getMessage());
-        }
-
-        return redirect()->back()->with('success', 'Borrow saved successfully!');
-    }
-
-    public function returnItem(Request $request, $uid)
-    {
-        $item = Item::where('uid', $uid)->first();
-
-        if (!$item) {
-            return redirect()->back()->with('error', 'Item not found.');
-        }
-
-        $borrow = Borrow::where('uid', $uid)
-            ->whereNull('returned_at')
-            ->latest()
-            ->first();
-
-        if (!$borrow) {
-            return redirect()->back()->with('error', 'No active borrow record found.');
-        }
-
-        $borrow->update([
-            'returned_at' => now(),
-            'return_date' => now()->toDateString(),
-        ]);
-
-        $item->update(['status' => 'available']);
-
-        $this->mirrorToSheet([
-            'type'          => 'borrow',
-            'timestamp'     => now()->format('Y-m-d H:i:s'),
-            'borrow_id'     => $borrow->id,
-            'user_id'       => $borrow->user_id,
-            'borrower_name' => $borrow->borrower_name,
-            'uid'           => $borrow->uid,
-            'asset_id'      => optional($item)->asset_id,
-            'name'          => optional($item)->name,
-            'borrow_date'   => optional($borrow->borrow_date)->format('Y-m-d'),
-            'return_date'   => optional($borrow->due_date)->format('Y-m-d'),
-            'borrowed_at'   => optional($borrow->borrowed_at)->format('Y-m-d'),
-            'returned_at'   => now()->format('Y-m-d'),
-            'status'        => 'available',
-            'remarks'       => $borrow->remarks ?? '',
-        ]);
-
-        // 👉 NEW: notify admins & technicals that item is returned
-        try {
-            $targets = User::whereIn('role', ['admin', 'technical'])->get();
-            $who     = auth()->user()->name ?? 'A user';
-            $title   = 'Item Returned';
-            $body    = "{$who} returned: " . ($item->name ?? 'Unknown') . " (UID: {$uid})";
-            Notification::send($targets, new GenericDatabaseNotification(
-                $title, $body, route('history.index')
-            ));
-        } catch (\Throwable $e) {
-            Log::warning('Notify (return) failed: '.$e->getMessage());
-        }
-
-        return redirect()->back()->with('success', 'Item returned successfully!');
-    }
-
-    public function destroy($id)
-    {
-        $borrow = Borrow::findOrFail($id);
-        $item = Item::where('uid', $borrow->uid)->first();
-
-        if ($item) {
-            $item->update(['status' => 'available']);
-        }
-
-        $this->mirrorToSheet([
-            'type'       => 'delete',
-            'borrow_id'  => $borrow->id,
-            'uid'        => $borrow->uid,
-        ]);
-
-        $borrow->delete();
-
-        return redirect()->back()->with('success', 'Borrow record deleted successfully!');
-    }
-
-    public function fetchItem($uid)
-    {
-        $item = Item::where('uid', $uid)->first();
-
-        if (!$item) {
-            return response()->json(['error' => 'Item not found'], 404);
-        }
-
-        return response()->json([
-            'uid'           => $item->uid,
-            'asset_id'      => $item->asset_id,
-            'name'          => $item->name,
-            'detail'        => $item->detail,
-            'accessories'   => $item->accessories,
-            'type_id'       => $item->type_id,
-            'serial_no'     => $item->serial_no,
-            'status'        => $item->status,
-            'purchase_date' => $item->purchase_date,
-            'remarks'       => $item->remarks,
-        ]);
-    }
-
-    // ✅ Make sure this matches your route list
-    public function getUserByUid($cardUid)
-    {
-        $service = new \App\Services\GoogleSheetService();
-        $response = $service->getValues('Users!A:C');
-        $values = $response->getValues();
-
-        $studentId = null;
-        $name = null;
-
-        foreach ($values as $index => $row) {
-            if ($index === 0) continue; // skip header
-            if (isset($row[0]) && trim($row[0]) === trim($cardUid)) {
-                $studentId = $row[1] ?? null;
-                $name      = $row[2] ?? null;
-                break;
+            $gs = app(\App\Services\GoogleSheetService::class);
+            if (!$gs->isReady()) {
+                return back()->with('error', 'Google Sheets API not configured.');
             }
-        }
 
-        if (!$studentId || !$name) {
-            return response()->json(['error' => 'User not found'], 404);
-        }
+            $latestRow = null;
 
-        return response()->json([
-            'uid'        => $cardUid,
-            'student_id' => $studentId,
-            'name'       => $name
-        ]);
+            foreach ($request->items as $item) {
+                $row = [
+                    now()->format('Y-m-d H:i:s'),
+                    '',
+                    $request->user_id,
+                    $request->borrower_name,
+                    $item['uid'],
+                    $item['asset_id'] ?? '',
+                    $item['name'] ?? '',
+                    $request->borrow_date ?? now()->toDateString(),
+                    $request->due_date ?? '',
+                    now()->toDateString(),
+                    '',
+                    'borrowed',
+                ];
+
+                // ✅ Add to Google Sheet
+                $gs->appendRow($row, 'BorrowDetails!A:L');
+                $latestRow = $row;
+
+                // ✅ Update in Google Sheet
+                $this->updateItemStatus($item['uid'], 'borrowed');
+
+                // ✅ Update local DB table
+                \App\Models\Item::where('uid', $item['uid'])->update(['status' => 'borrowed']);
+            }
+
+            session(['recentBorrow' => [$latestRow]]);
+            return back()->with('success', '✅ Saved to Google Sheets and updated item status.');
+        } catch (\Throwable $e) {
+            Log::error('publicStore failed: '.$e->getMessage());
+            return back()->with('error', '❌ Failed: '.$e->getMessage());
+        }
     }
 
-    protected function mirrorToSheet(array $payload): void
+    public function returnByUid(Request $request, string $uid)
     {
-        $url = config('services.google.webapp_url');
-        $secret = config('services.google.secret');
-
-        if (!$url || !$secret) {
-            Log::warning('Sheet mirror skipped: missing credentials');
-            return;
-        }
-
         try {
-            Http::timeout(10)->asJson()->post($url, array_merge($payload, [
-                'secret' => $secret,
-            ]));
+            $gs = app(\App\Services\GoogleSheetService::class);
+            if (!$gs->isReady()) return back()->with('error', 'Google Sheets API not configured.');
+
+            $last = $this->findLatestBorrowRowByUid($uid);
+            if (!$last) return back()->with('error', 'No borrow row found for this UID.');
+
+            $row = [
+                now()->format('Y-m-d H:i:s'),
+                '',
+                $last['UserID'] ?? '',
+                $last['BorrowerName'] ?? '',
+                $uid,
+                $last['AssetID'] ?? '',
+                $last['Name'] ?? '',
+                $last['BorrowDate'] ?? '',
+                $last['ReturnDate'] ?? '',
+                $last['BorrowedAt'] ?? '',
+                now()->toDateString(),
+                'available',
+            ];
+
+            // ✅ Append return record
+            $gs->appendRow($row, 'BorrowDetails!A:L');
+
+            // ✅ Update status both sides
+            $this->updateItemStatus($uid, 'available');
+            \App\Models\Item::where('uid', $uid)->update(['status' => 'available']);
+
+            session(['recentBorrow' => [$row]]);
+            return back()->with('success', '✅ Marked returned and status updated.');
         } catch (\Throwable $e) {
-            Log::warning('Sheet mirror failed: ' . $e->getMessage());
+            Log::error('returnByUid failed: '.$e->getMessage());
+            return back()->with('error', '❌ Failed to mark returned.');
+        }
+    }
+
+    protected function updateItemStatus(string $uid, string $status): void
+    {
+        try {
+            $gs = app(\App\Services\GoogleSheetService::class);
+            if (!$gs->isReady()) return;
+
+            $values = $gs->getValues('Items!A:E')->getValues();
+            if (!$values || count($values) <= 1) return;
+
+            foreach ($values as $i => $row) {
+                if ($i === 0) continue;
+                if (isset($row[0]) && trim($row[0]) === trim($uid)) {
+                    $rowNum = $i + 1;
+                    $range = "D{$rowNum}";
+                    $gs->updateRow('Items', $range, [[$status]]);
+                    Log::info("Updated UID {$uid} status to {$status}");
+                    break;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('updateItemStatus failed: '.$e->getMessage());
+        }
+    }
+
+    public function deleteBorrow($uid)
+    {
+        try {
+            $service = app(\App\Services\GoogleSheetService::class);
+            if (!$service->isReady()) {
+                return response()->json(['message' => 'Google Sheets API not configured.'], 500);
+            }
+
+            $rows = $service->getValues('BorrowDetails!A:L')->getValues();
+            $targetRow = null;
+            foreach ($rows as $i => $r) {
+                if ($i === 0) continue;
+                if (isset($r[4]) && trim($r[4]) === trim($uid)) {
+                    $targetRow = $i + 1;
+                    break;
+                }
+            }
+
+            if ($targetRow) {
+                $service->deleteRow('BorrowDetails', $targetRow);
+                // ✅ also set local item back to available
+                \App\Models\Item::where('uid', $uid)->update(['status' => 'available']);
+                return response()->json(['message' => '✅ Borrow record deleted and status reset.']);
+            }
+
+            return response()->json(['message' => 'UID not found in Google Sheet.'], 404);
+        } catch (\Throwable $e) {
+            Log::error('Delete Borrow Error: '.$e->getMessage());
+            return response()->json(['message' => '❌ Failed to delete: '.$e->getMessage()], 500);
+        }
+    }
+
+    protected function readRecentFromSheet(): array
+    {
+        try {
+            $gs = app(\App\Services\GoogleSheetService::class);
+            if (!$gs->isReady()) return [];
+
+            $values = $gs->getValues('BorrowDetails!A:L')->getValues();
+            if (!$values || count($values) <= 1) return [];
+
+            $data = array_slice($values, 1);
+            $last = end($data);
+
+            if (!$last) return [];
+
+            return [[
+                'Timestamp'    => $last[0] ?? '',
+                'BorrowID'     => $last[1] ?? '',
+                'UserID'       => $last[2] ?? '',
+                'BorrowerName' => $last[3] ?? '',
+                'UID'          => $last[4] ?? '',
+                'AssetID'      => $last[5] ?? '',
+                'Name'         => $last[6] ?? '',
+                'BorrowDate'   => $last[7] ?? '',
+                'ReturnDate'   => $last[8] ?? '',
+                'BorrowedAt'   => $last[9] ?? '',
+                'ReturnedAt'   => $last[10] ?? '',
+                'Status'       => $last[11] ?? '',
+            ]];
+        } catch (\Throwable $e) {
+            \Log::warning('readRecentFromSheet error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    protected function findLatestBorrowRowByUid(string $uid): ?array
+    {
+        $rows = $this->readRecentFromSheetFull();
+        $filtered = array_values(array_filter($rows, fn($r)=>($r['UID'] ?? '') === $uid));
+        if (!$filtered) return null;
+        usort($filtered, fn($a,$b)=>strcmp($b['Timestamp'],$a['Timestamp']));
+        return $filtered[0];
+    }
+
+    protected function readRecentFromSheetFull(): array
+    {
+        try {
+            $gs = app(\App\Services\GoogleSheetService::class);
+            if (!$gs->isReady()) return [];
+            $values = $gs->getValues('BorrowDetails!A:L')->getValues();
+            if (!$values || count($values) <= 1) return [];
+            $rows = [];
+            foreach (array_slice($values, 1) as $r) {
+                $rows[] = [
+                    'Timestamp'    => $r[0]  ?? '',
+                    'BorrowID'     => $r[1]  ?? '',
+                    'UserID'       => $r[2]  ?? '',
+                    'BorrowerName' => $r[3]  ?? '',
+                    'UID'          => $r[4]  ?? '',
+                    'AssetID'      => $r[5]  ?? '',
+                    'Name'         => $r[6]  ?? '',
+                    'BorrowDate'   => $r[7]  ?? '',
+                    'ReturnDate'   => $r[8]  ?? '',
+                    'BorrowedAt'   => $r[9]  ?? '',
+                    'ReturnedAt'   => $r[10] ?? '',
+                    'Status'       => $r[11] ?? '',
+                ];
+            }
+            return $rows;
+        } catch (\Throwable $e) {
+            return [];
         }
     }
 }

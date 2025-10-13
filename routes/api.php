@@ -8,22 +8,28 @@ use App\Models\Item;
 use Carbon\Carbon;
 use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\BorrowController;
+use App\Http\Controllers\NfcController;
 
-// other existing routes...
-Route::post('/nfc-scan', [App\Http\Controllers\NfcController::class, 'store']);
-Route::post('/nfc-register', [App\Http\Controllers\NfcController::class, 'register']);
-Route::delete('/nfc-delete/{uid}', [App\Http\Controllers\NfcController::class, 'delete']);
+// ────────────────────────────────
+// ✅ Existing NFC / Google Sheet Routes
+// ────────────────────────────────
+Route::post('/nfc-scan', [NfcController::class, 'store']);
+Route::post('/nfc-register', [NfcController::class, 'register']);
+Route::delete('/nfc-delete/{uid}', [NfcController::class, 'delete']);
 
-// API endpoints for Arduino
-Route::post('/start-scan', [RegisterController::class, 'startScan']);
-// Route::get('/scan-next', [RegisterController::class, 'scanNext']);
-// Route::post('/register-uid', [RegisterController::class, 'captureUID']);
-Route::get('/get-uid', [RegisterController::class, 'getUID']);
-
+// ────────────────────────────────
+// ✅ Borrow / Student Lookup
+// ────────────────────────────────
 Route::get('/get-student-name', [BorrowController::class, 'getStudentName']);
-Route::get('/borrow/user/{cardUid}', [BorrowController::class, 'getUserByUid']);
 
-// ✅ New unified route
+Route::get('/borrow/user/{cardUid}', [BorrowController::class, 'getUserByUid'])->name('borrow.getUser');
+Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
+
+
+
+// ────────────────────────────────
+// ✅ Item Registration (keep existing)
+// ────────────────────────────────
 Route::post('/items/register', function (Request $request) {
     $data = $request->only([
         'uid','asset_id','name','detail','accessories',
@@ -39,44 +45,65 @@ Route::post('/items/register', function (Request $request) {
     }
 
     Item::updateOrCreate(['asset_id' => $data['asset_id']], $data);
-
     return response("Item saved successfully");
 });
 
-// Tell ESP32 when to scan (card or sticker)
+// ────────────────────────────────
+// ✅ FULL RESTORE of Project 1 SCANNING FLOW
+// ────────────────────────────────
+
+// 🔹 Borrow Flow
 Route::get('/scan-next', function () {
-    $type = Cache::pull('nfc_scan_ready', false);
-    if ($type) {
-        return response($type, 200); // either "card" or "sticker"
-    }
-    return response('idle', 200);
+    return response(Cache::get('nfc_scan_ready', 'idle'), 200); // “card”, “sticker”, or “idle”
 });
 
-// ESP32 sends UID here
 Route::post('/register-uid', function (Request $request) {
     $uid = $request->input('uid');
-    if (!$uid) {
-        return response()->json(['error' => 'UID missing'], 400);
-    }
+    if (!$uid) return response()->json(['error' => 'UID missing'], 400);
 
-    // Store UID temporarily for frontend
     Cache::put('last_nfc_uid', $uid, now()->addSeconds(30));
-
     return response()->json(['message' => 'UID received', 'uid' => $uid]);
 });
 
-// Frontend fetches UID after scan
 Route::get('/read-uid', function () {
-    $uid = Cache::pull('last_nfc_uid');
-    if ($uid) {
-        return response()->json(['uid' => $uid]);
-    }
-    return response()->json(['uid' => null]);
+    return response()->json(['uid' => Cache::get('last_nfc_uid')]);
 });
 
-// Frontend requests ESP32 to start scanning (type: card/sticker)
 Route::post('/request-scan', function (Request $request) {
-    $type = $request->input('type', 'card'); // default to card
+    $type = $request->input('type', 'card');
     Cache::put('nfc_scan_ready', $type, now()->addSeconds(20));
     return response()->json(['message' => "Scan ($type) requested"]);
+});
+
+// 🔹 Register Flow (fixed for Project 2)
+Route::get('/register-scan-next', function () {
+    $value = Cache::get('register_scan_ready', 'idle');
+    \Log::info("🔍 [register-scan-next] Current value: " . $value);
+    return response($value, 200);
+});
+
+Route::post('/request-register-scan', function (Request $request) {
+    // Always refresh cache for 25 seconds
+    Cache::put('register_scan_ready', 'card', now()->addSeconds(25));
+    \Log::info("✅ [request-register-scan] Key stored = card");
+    return response()->json(['message' => "Register scan requested"]);
+});
+
+Route::post('/register-register-uid', function (Request $request) {
+    $uid = $request->input('uid');
+    if (!$uid) {
+        \Log::warning("⚠️ register-register-uid missing UID");
+        return response()->json(['error' => 'UID missing'], 400);
+    }
+
+    Cache::put('last_register_uid', $uid, now()->addSeconds(60));
+    \Log::info("📌 Register UID received: " . $uid);
+
+    return response()->json(['message' => 'Register UID received', 'uid' => $uid]);
+});
+
+Route::get('/read-register-uid', function () {
+    $uid = Cache::get('last_register_uid');
+    \Log::info("📖 [read-register-uid] returning uid = " . ($uid ?? 'null'));
+    return response()->json(['uid' => $uid]);
 });
