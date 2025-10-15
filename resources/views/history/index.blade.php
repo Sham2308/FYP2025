@@ -61,6 +61,9 @@ use Carbon\Carbon;
 
 $tz = config('app.timezone', 'Asia/Brunei');
 
+/** Display format for dates */
+$DISPLAY_DATE_FMT = 'd/m/Y';
+
 $safeDate = function($v, $fmt = 'd-m-Y') use ($tz) {
   try {
     if ($v === null || $v === '') return '-';
@@ -172,41 +175,43 @@ $isoDate = function($v) {
 <table id="historyTable">
   <thead>
     <tr>
-      <th>UID</th>
-      <th>BorrowID</th>
-      <th>UserID</th>
+      <th>CardID</th>
       <th>BorrowerName</th>
-      <th>AssetID</th>
-      <th>Name</th>
+      <th>UserID</th>
+      <th>ItemID</th>
       <th>BorrowDate</th>
       <th>ReturnDate</th>
       <th>BorrowedAt</th>
       <th>ReturnedAt</th>
       <th>Status</th>
-      <th>Remarks</th>
       <th class="sortable">Days Borrowed ⬍</th>
     </tr>
   </thead>
   <tbody>
   @foreach($history as $row)
     @php
+      // fallbacks so it still renders even if keys slightly differ
+      $cardId = $row['CardID'] ?? $row['UID'] ?? '-';
+      $itemId = $row['ItemID'] ?? $row['AssetID'] ?? '-';
+      $borrowedAtRaw = $row['BorrowedAt'] ?? $row['BorrowTime'] ?? $row['BorrowedTime'] ?? ($row['Name'] ?? null);
+      $returnedAtRaw = $row['ReturnedAt'] ?? $row['ReturnTime'] ?? null;
+
       $borrowDateIso = $isoDate($row['BorrowDate'] ?? null);
       $returnDateIso = $isoDate($row['ReturnDate'] ?? null);
     @endphp
     <tr>
-      <td>{{ $row['UID'] ?? '-' }}</td>
-      <td>{{ $row['BorrowID'] ?? '-' }}</td>
-      <td>{{ $row['UserID'] ?? '-' }}</td>
+      <td>{{ $cardId }}</td>
       <td>{{ $row['BorrowerName'] ?? '-' }}</td>
-      <td>{{ $row['AssetID'] ?? '-' }}</td>
-      <td>{{ $row['Name'] ?? '-' }}</td>
-      {{-- match sheet formats exactly --}}
-      <td>{{ $safeDate($row['BorrowDate'] ?? null, 'd-m-Y') }}</td>
-      <td>{{ $safeDate($row['ReturnDate'] ?? null, 'd-m-Y') }}</td>
-      <td>{{ $safeTime($row['BorrowedAt'] ?? null, 'H:i') }}</td>
-      <td>{{ $safeTime($row['ReturnedAt'] ?? null, 'H:i') }}</td>
+      <td>{{ $row['UserID'] ?? '-' }}</td>
+      <td>{{ $itemId }}</td>
+      {{-- Display using configured format --}}
+      <td>{{ $safeDate($row['BorrowDate'] ?? null, $DISPLAY_DATE_FMT) }}</td>
+      <td>{{ $safeDate($row['ReturnDate'] ?? null, $DISPLAY_DATE_FMT) }}</td>
+      {{-- Times as HH:MM (24h) --}}
+      <td>{{ !empty($borrowedAtRaw) ? date('g:i A', strtotime($borrowedAtRaw)) : '-' }}</td>
+      <td>{{ !empty($returnedAtRaw) ? date('g:i A', strtotime($returnedAtRaw)) : '-' }}</td>
       <td>{{ $row['Status'] ?? '-' }}</td>
-      <td>{{ $row['Remarks'] ?? '-' }}</td>
+     
       <td>
         <span class="days-badge"
               data-start="{{ $borrowDateIso }}"
