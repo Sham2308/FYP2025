@@ -34,7 +34,8 @@ class RegisteredUserController extends Controller
             'name'     => ['required', 'string', 'max:255'],
             'staff_id' => ['nullable', 'string', 'max:255'],
             // email now optional
-            'email'    => ['nullable', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
+            'email'    => ['nullable', 'string', 'email', 'max:255'],
+
         ]);
 
         $user = User::create([

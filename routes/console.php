@@ -1,8 +1,15 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
+use App\Actions\SyncItemsFromSheet;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+Artisan::command('items:sync-google', function (SyncItemsFromSheet $sync) {
+    $count = $sync();
+    $this->info("Synced {$count} rows.");
+})->purpose('Sync Items from Google Sheet');
+
+Schedule::command('items:sync-google')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->onOneServer();

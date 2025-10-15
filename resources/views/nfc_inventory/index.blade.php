@@ -1,5 +1,4 @@
 <x-app-layout>
-    {{-- Optional page-scoped styles (no body/html selectors) --}}
     <style>
         .tech-page * { box-sizing: border-box; }
         .tech-page h2 { text-align:center; margin:24px 0 6px; }
@@ -14,8 +13,8 @@
         .tech-page .badge { padding:4px 10px; border-radius:999px; font-weight:600; display:inline-block; }
         .tech-page .badge-good { background:#dcfce7; color:#166534; border:1px solid #86efac; }
         .tech-page .badge-na   { background:#e5e7eb; color:#374151; border:1px solid #d1d5db; }
-        .tech-page .badge-warn { background:#ede9fe; color:#5b21b6; border:1px solid #ddd6fe; } /* Under Repair look */
-        .tech-page .top-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:8px; }
+        .tech-page .badge-warn { background:#ede9fe; color:#5b21b6; border:1px solid #ddd6fe; }
+        .tech-page .top-actions { display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-top:8px; }
         .tech-page .btn { padding:8px 14px; border:none; border-radius:8px; font-weight:600; cursor:pointer; }
         .tech-page .btn-green { background:#16a34a; color:#fff; }
         .tech-page .btn-red { background:#dc2626; color:#fff; }
@@ -27,7 +26,6 @@
         .tech-page .modal-content { background:#fff; padding:20px; border-radius:8px; width:90%; max-width:800px; }
         .tech-page .actions { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
 
-        /* Dropdown styles */
         .edit-dropdown { position:relative; display:inline-block; }
         .edit-btn { background:#2563eb; color:#fff; border:none; padding:8px 12px; border-radius:10px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
         .dd-menu { position:absolute; right:0; top:42px; min-width:200px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 10px 25px rgba(0,0,0,.08); padding:6px; display:none; z-index:20; text-align:left; }
@@ -35,7 +33,6 @@
         .dd-item:hover, .dd-form-btn:hover { background:#f3f4f6; }
         .dd-danger { color:#b91c1c; }
 
-        /* Filter form */
         .filter-form { display:flex; gap:10px; margin:10px 0 14px; flex-wrap:wrap; align-items:center; }
         .filter-form input, .filter-form select { padding:8px; border:1px solid #cbd5e1; border-radius:6px; }
         .filter-form button { padding:8px 14px; border:none; border-radius:6px; cursor:pointer; font-weight:600; }
@@ -43,33 +40,41 @@
         .filter-form .btn-blue:hover { background:#1d4ed8; }
         .filter-form .btn-gray { background:#6b7280; color:white; text-decoration:none; display:inline-block; }
         .filter-form .btn-gray:hover { background:#4b5563; }
+
+        @media (max-width: 768px) {
+            .tech-page .wrap { width: 100%; margin: 0 auto 24px; padding: 0 8px; }
+            .tech-page .card { padding:10px; }
+            .tech-page .top-actions { flex-direction: column; align-items: stretch; }
+            .tech-page .top-actions .btn { width: 100%; text-align: center; font-size: 15px; }
+            .filter-form { flex-direction: column; align-items: stretch; gap: 8px; }
+            .filter-form input, .filter-form select, .filter-form button, .filter-form .btn-gray {
+                width: 100%;
+                font-size: 15px;
+            }
+            .tech-page table { font-size: 13px; }
+            .tech-page th, .tech-page td { padding:6px; white-space: nowrap; }
+            .table-wrapper { overflow-x: auto; width: 100%; }
+            .tech-page h3 { font-size: 18px; text-align:center; margin-top: 16px; }
+        }
     </style>
 
-    {{-- Optional page header slot (shows under the blue nav) --}}
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+        <h2 class="font-semibold text-xl text-gray-800 leading-tight text-center md:text-left">
             NFC Inventory Dashboard
         </h2>
     </x-slot>
 
     <div class="tech-page">
-        {{-- Flash messages --}}
-        @if(session('success'))
-            <div class="alert alert-success">{{ session('success') }}</div>
-        @endif
-        @if(session('error'))
-            <div class="alert alert-error">{{ session('error') }}</div>
-        @endif
+        @if(session('success')) <div class="alert alert-success">{{ session('success') }}</div> @endif
+        @if(session('error'))   <div class="alert alert-error">{{ session('error') }}</div>   @endif
 
         <div class="wrap">
-            <!-- Top actions -->
             <div class="card">
                 <div class="top-actions">
                     <form action="{{ route('items.import.google') }}" method="POST" class="inline">
                         @csrf
                         <button type="submit" class="btn btn-green">Import from Google Sheets</button>
                     </form>
-
                     <button id="openModal" class="btn btn-green">+ Add Item</button>
                 </div>
             </div>
@@ -114,12 +119,11 @@
                 </div>
             </div>
 
-            <!-- Inventory Items Table -->
-            <h3 style="margin-top:20px;">Inventory Items</h3>
+            <h3>Inventory Items</h3>
 
-            <!-- 🔍 Filter Form Added Here -->
+            <!-- Filter -->
             <form method="GET" action="{{ route('nfc.inventory') }}" class="filter-form" id="filterForm">
-                <input type="text" name="search" id="searchInput" placeholder="Search by name, UID, or asset ID..." value="{{ request('search') }}">
+                <input type="text" name="search" id="searchInput" placeholder="Search by name, Item ID, or asset ID..." value="{{ request('search') }}">
                 <select name="status" id="statusFilter">
                     <option value="">All Status</option>
                     <option value="available" {{ request('status')=='available' ? 'selected' : '' }}>Available</option>
@@ -133,160 +137,174 @@
                 <a href="{{ route('nfc.inventory') }}" class="btn btn-gray">Clear</a>
             </form>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>UID</th>
-                        <th>Asset_ID</th>
-                        <th>Name</th>
-                        <th>Detail</th>
-                        <th>Accessories</th>
-                        <th>Type_ID</th>
-                        <th>Serial No</th>
-                        <th>Status</th>
-                        <th>Purchase Date</th>
-                        <th>Remarks</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($items as $item)
-                        @php
-                            $status = (string)($item->status ?? '');
-                            $isAvailable = $status === 'available';
-                            $isUnderRepair = $status === 'under repair';
-                        @endphp
+            <div class="table-wrapper">
+                <table>
+                    <thead>
                         <tr>
-                            <td>{{ $item->uid ?? '—' }}</td>
-                            <td>{{ $item->asset_id ?? '—' }}</td>
-                            <td>{{ $item->name ?? '—' }}</td>
-                            <td>{{ $item->detail ?? '—' }}</td>
-                            <td>{{ $item->accessories ?? '—' }}</td>
-                            <td>{{ $item->type_id ?? '—' }}</td>
-                            <td>{{ $item->serial_no ?? '—' }}</td>
-                            <td>
-                                @if($isAvailable)
-                                    <span class="badge badge-good">Available</span>
-                                @elseif($isUnderRepair)
-                                    <span class="badge badge-warn">Under Repair</span>
-                                @else
-                                    <span class="badge badge-na">{{ $status ?: '—' }}</span>
-                                @endif
-                            </td>
-                            <td>{{ $item->purchase_date ?? '—' }}</td>
-                            <td>{{ $item->remarks ?? '—' }}</td>
-                            <td>
-                                <div class="edit-dropdown">
-                                    <button class="edit-btn" type="button" data-dd="menu-{{ $item->asset_id }}">
-                                        Edit
-                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/>
-                                        </svg>
-                                    </button>
-                                    <div id="menu-{{ $item->asset_id }}" class="dd-menu">
-                                        <a class="dd-item" href="{{ route('items.edit', $item->asset_id) }}"> Edit details</a>
-
-                                        @if($isAvailable)
-                                            <form method="POST" action="{{ route('items.markUnderRepair', $item->asset_id) }}" style="margin:0;">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button class="dd-form-btn" type="submit"
-                                                    onclick="return confirm('Mark this item as Under Repair?')">
-                                                     Mark as Under Repair
-                                                </button>
-                                            </form>
-                                        @elseif($isUnderRepair)
-                                            <form method="POST" action="{{ route('items.markAvailable', $item->asset_id) }}" style="margin:0;">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button class="dd-form-btn" type="submit"
-                                                    onclick="return confirm('Mark this item as Available?')">
-                                                    ✅ Mark as Available
-                                                </button>
-                                            </form>
-                                        @endif
-
-                                        <form method="POST" action="{{ route('items.destroy', $item->asset_id) }}" style="margin:0;">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button class="dd-form-btn dd-danger" type="submit"
-                                                onclick="return confirm('Delete this item? This cannot be undone.')">
-                                                 Delete
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </td>
+                            <th>Item ID</th> <!-- renamed from UID -->
+                            <th>Asset_ID</th>
+                            <th>Name</th>
+                            <th>Detail</th>
+                            <th>Accessories</th>
+                            <th>Type_ID</th>
+                            <th>Serial No</th>
+                            <th>Status</th>
+                            <th>Purchase Date</th>
+                            <th>Remarks</th>
+                            <th>Action</th>
                         </tr>
-                    @empty
-                        <tr><td colspan="12">No items yet</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @forelse($items as $item)
+                            @php
+                                $status = (string)($item->status ?? '');
+                                $isAvailable = $status === 'available';
+                                $isUnderRepair = $status === 'under repair';
+                            @endphp
+                            <tr>
+                                <td>{{ $item->uid ?? '—' }}</td>
+                                <td>{{ $item->asset_id ?? '—' }}</td>
+                                <td>{{ $item->name ?? '—' }}</td>
+                                <td>{{ $item->detail ?? '—' }}</td>
+                                <td>{{ $item->accessories ?? '—' }}</td>
+                                <td>{{ $item->type_id ?? '—' }}</td>
+                                <td>{{ $item->serial_no ?? '—' }}</td>
+                                <td>
+                                    @if($isAvailable)
+                                        <span class="badge badge-good">Available</span>
+                                    @elseif($isUnderRepair)
+                                        <span class="badge badge-warn">Under Repair</span>
+                                    @else
+                                        <span class="badge badge-na">{{ $status ?: '—' }}</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @php($pd = $item->purchase_date)
+                                    {{ $pd ? \Carbon\Carbon::parse($pd)->format('d/m/Y') : '—' }}
+                                </td>
+                                <td>{{ $item->remarks ?? '—' }}</td>
+                                <td>
+                                    <div class="edit-dropdown">
+                                        <button class="edit-btn" type="button" data-dd="menu-{{ $item->asset_id }}">
+                                            Edit
+                                            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/>
+                                            </svg>
+                                        </button>
+                                        <div id="menu-{{ $item->asset_id }}" class="dd-menu">
+                                            <a class="dd-item" href="{{ route('items.edit', $item->asset_id) }}">Edit details</a>
+
+                                            @if($isAvailable)
+                                                <form method="POST" action="{{ route('items.markUnderRepair', $item->asset_id) }}" style="margin:0;">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button class="dd-form-btn" type="submit" onclick="return confirm('Mark this item as Under Repair?')">
+                                                        Mark as Under Repair
+                                                    </button>
+                                                </form>
+                                            @elseif($isUnderRepair)
+                                                <form method="POST" action="{{ route('items.markAvailable', $item->asset_id) }}" style="margin:0;">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button class="dd-form-btn" type="submit" onclick="return confirm('Mark this item as Available?')">
+                                                        ✅ Mark as Available
+                                                    </button>
+                                                </form>
+                                            @endif
+
+                                            <form method="POST" action="{{ route('items.destroy', $item->asset_id) }}" style="margin:0;">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button class="dd-form-btn dd-danger" type="submit" onclick="return confirm('Delete this item? This cannot be undone.')">
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="12">No items yet</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    {{-- Page script --}}
     <script>
-    // === Filter auto-submit ===
-    document.getElementById('statusFilter')?.addEventListener('change', () => {
-        document.getElementById('filterForm').submit();
-    });
-    document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
+        // Filters
+        document.getElementById('statusFilter')?.addEventListener('change', () => {
             document.getElementById('filterForm').submit();
+        });
+        document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('filterForm').submit(); }
+        });
+
+        // Modal
+        const openBtn = document.getElementById("openModal");
+        const closeBtn = document.getElementById("closeModal");
+        const modal = document.getElementById("itemModal");
+        if (openBtn) openBtn.onclick = () => { modal.style.display = "flex"; };
+        if (closeBtn) closeBtn.onclick = () => { modal.style.display = "none"; };
+        window.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; };
+
+        // Scan (uses your existing API: /api/start-scan + /api/get-uid)
+        const scanBtn = document.getElementById("scan-btn");
+        if (scanBtn) {
+            scanBtn.addEventListener("click", async () => {
+                try {
+                    await fetch("/api/start-scan", { method: "POST" });
+                    alert("Please tap your NFC card...");
+                    let uid = null;
+                    for (let i = 0; i < 15; i++) {
+                        const response = await fetch("/api/get-uid");
+                        const data = await response.json();
+                        if (data.uid) { uid = data.uid; break; }
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                    if (uid) document.getElementById("uid").value = uid;
+                    else alert("No UID received. Try again.");
+                } catch (err) { alert("Error: " + err); }
+            });
         }
-    });
 
-    // === Rest of your existing JS (unchanged) ===
-    const openBtn = document.getElementById("openModal");
-    const closeBtn = document.getElementById("closeModal");
-    const modal = document.getElementById("itemModal");
-
-    if (openBtn) openBtn.onclick = () => { modal.style.display = "flex"; };
-    if (closeBtn) closeBtn.onclick = () => { modal.style.display = "none"; };
-    window.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; };
-
-    const scanBtn = document.getElementById("scan-btn");
-    if (scanBtn) {
-        scanBtn.addEventListener("click", async () => {
-            try {
-                await fetch("/api/request-scan", { method: "POST" });
-                alert("Please tap your NFC card...");
-
-                let uid = null;
-                for (let i = 0; i < 15; i++) {
-                    const response = await fetch("/api/read-uid");
-                    const data = await response.json();
-                    if (data.uid) { uid = data.uid; break; }
-                    await new Promise(r => setTimeout(r, 1000));
-                }
-
-                if (uid) {
-                    document.getElementById("uid").value = uid;
-                } else {
-                    alert("No UID received. Try again.");
-                }
-            } catch (err) {
-                alert("Error: " + err);
+        // Dropdowns
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.edit-dropdown')) {
+                document.querySelectorAll('.dd-menu').forEach(m => m.style.display = 'none');
+                return;
+            }
+            const btn = e.target.closest('button[data-dd]');
+            if (btn) {
+                const id = btn.getAttribute('data-dd');
+                const menu = document.getElementById(id);
+                const isOpen = menu && menu.style.display === 'block';
+                document.querySelectorAll('.dd-menu').forEach(m => m.style.display = 'none');
+                if (menu) menu.style.display = isOpen ? 'none' : 'block';
             }
         });
-    }
 
-    document.addEventListener('click', function (e) {
-        if (!e.target.closest('.edit-dropdown')) {
-            document.querySelectorAll('.dd-menu').forEach(m => m.style.display = 'none');
-            return;
-        }
-        const btn = e.target.closest('button[data-dd]');
-        if (btn) {
-            const id = btn.getAttribute('data-dd');
-            const menu = document.getElementById(id);
-            const isOpen = menu && menu.style.display === 'block';
-            document.querySelectorAll('.dd-menu').forEach(m => m.style.display = 'none');
-            if (menu) menu.style.display = isOpen ? 'none' : 'block';
-        }
-    });
+        // Live reload on sheet sync (cache-busting)
+        (function(){
+            let known = @json(\Illuminate\Support\Facades\Cache::get('items_last_sync_at'));
+            async function ping(){
+                try{
+                    const url = "{{ route('items.last-sync') }}" + "?t=" + Date.now();
+                    const r = await fetch(url, {
+                        cache: 'no-store',
+                        headers: {
+                            'Accept':'application/json',
+                            'Pragma':'no-cache',
+                            'Cache-Control':'no-cache'
+                        }
+                    });
+                    const { last_sync_at } = await r.json();
+                    if(last_sync_at && last_sync_at !== known) location.reload();
+                }catch(e){}
+                setTimeout(ping, 5000);
+            }
+            setTimeout(ping, 5000);
+        })();
     </script>
 </x-app-layout>

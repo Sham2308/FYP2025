@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Cache; // for last-sync JSON
 
 // Controllers
 use App\Http\Controllers\ProfileController;
@@ -42,42 +43,31 @@ Route::get('/', function () {
 Route::redirect('/nfc-inventory', '/nfc/inventory');
 
 // ── Public pages ───────────────────────────────────────────────────────
-
-// ✅ Main public registration now uses PublicRegisterController (Option B)
-Route::get('/register', [PublicRegisterController::class, 'showForm'])
-    ->name('public.register.form');
-Route::post('/register', [PublicRegisterController::class, 'store'])
-    ->name('public.register.store');
+Route::get('/register', [PublicRegisterController::class, 'showForm'])->name('public.register.form');
+Route::post('/register', [PublicRegisterController::class, 'store'])->name('public.register.store');
 
 // Legacy /register-uid route (kept so old links still work)
-Route::get('/register-uid', [PublicRegisterController::class, 'showForm'])
-    ->name('public.registeruid.form');
-Route::post('/register-uid', [PublicRegisterController::class, 'store'])
-    ->name('public.registeruid.store');
+Route::get('/register-uid', [PublicRegisterController::class, 'showForm'])->name('public.registeruid.form');
+Route::post('/register-uid', [PublicRegisterController::class, 'store'])->name('public.registeruid.store');
 
 // After successful registration (go to borrow page)
 Route::get('/borrow', [BorrowController::class, 'index'])->name('borrow.index');
 
-// History still public
+// History is public (read-only)
 Route::get('/history', [HistoryController::class, 'index'])->name('history.index');
 
 // Public endpoint for fetching item details by UID
 Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
 
-// ── Guest-friendly Chat ────────────────────────────────────────────────
-// (Removed)
-// Route::middleware(['throttle:60,1'])->group(function () {
-//     Route::get('/chat/messages',  [ChatController::class, 'index'])->name('chat.index');
-//     Route::post('/chat/messages', [ChatController::class, 'store'])->name('chat.store');
-// });
-
 // ── Reports (PUBLIC) ───────────────────────────────────────────────────
 Route::get('/reports/create', [ReportController::class, 'create'])->name('reports.create');
-Route::post('/reports', [ReportController::class, 'store'])
-    ->middleware('throttle:20,1')
-    ->name('reports.store');
-
+Route::post('/reports', [ReportController::class, 'store'])->middleware('throttle:20,1')->name('reports.store');
 Route::redirect('/report', '/reports/create')->name('report.alias');
+
+// ── Live-reload JSON for NFC Inventory ─────────────────────────────────
+Route::get('/items/last-sync', fn () =>
+    response()->json(['last_sync_at' => Cache::get('items_last_sync_at')])
+)->name('items.last-sync');
 
 // ── Auth-only (any logged-in user) ─────────────────────────────────────
 Route::middleware('auth')->group(function () {
@@ -91,17 +81,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnItem'])->name('borrow.return');
     Route::delete('/borrow/{id}', [BorrowController::class, 'destroy'])->name('borrow.destroy');
 
-    // History import
-    Route::post('/history/import/google', [HistoryController::class, 'importFromGoogleSheet'])
-        ->name('history.import.google');
-
     // Notifications
-    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])
-        ->name('notifications.unreadCount');
-    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])
-        ->name('notifications.markAllRead');
-    Route::post('/notifications/{id}/read', [NotificationController::class, 'markOneRead'])
-        ->name('notifications.markOneRead');
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unreadCount');
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markOneRead'])->name('notifications.markOneRead');
 
     // Test notification
     Route::get('/notify-test', function () {
@@ -114,8 +97,12 @@ Route::middleware('auth')->group(function () {
 
 // ── Admin + Technical ──────────────────────────────────────────────────
 Route::middleware(['auth', 'role:admin,technical'])->group(function () {
-    Route::get('/technical', [TechnicalDashboardController::class, 'index'])
-        ->name('technical.dashboard');
+    Route::get('/technical', [TechnicalDashboardController::class, 'index'])->name('technical.dashboard');
+
+    // History import (only admin/technical)
+    Route::post('/history/import/google', [HistoryController::class, 'importFromGoogleSheet'])
+        ->middleware('throttle:5,1')
+        ->name('history.import.google');
 
     Route::patch('/items/{asset_id}/mark-available', [ItemStatusController::class, 'markAvailable'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
@@ -128,8 +115,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/nfc/inventory', [InventoryController::class, 'index'])->name('nfc.inventory');
 
     // Import items from Google Sheets
-    Route::post('/items/import/google', [ItemImportController::class, 'importFromGoogle'])
-        ->name('items.import.google');
+    Route::post('/items/import/google', [ItemImportController::class, 'importFromGoogle'])->name('items.import.google');
 
     // Items CRUD
     Route::post('/items', [InventoryController::class, 'store'])->name('items.store');

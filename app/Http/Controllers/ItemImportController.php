@@ -66,7 +66,8 @@ class ItemImportController extends Controller
                 Item::updateOrCreate(
                     ['asset_id' => $assetId],
                     [
-                        'uid'           => $data['uid'] ?? null,
+                        // 👇 Only change: map "Item ID" -> uid (headers are lowercased)
+                        'uid'           => $data['uid'] ?? $data['item id'] ?? $data['item_id'] ?? null,
                         'name'          => $data['name'] ?? '',
                         'detail'        => $data['detail'] ?? null,
                         'accessories'   => $data['accessories'] ?? null,
