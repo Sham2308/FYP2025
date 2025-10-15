@@ -50,21 +50,6 @@
 
         .inventory-card { flex:0.35; }
         .borrow-card { flex:0.65; }
-
-        /* chat widget */
-        .chat-box { position: fixed; bottom:20px; right:20px; width:320px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; box-shadow: 0 10px 30px rgba(0,0,0,.12); overflow:hidden; z-index: 9999; }
-        .chat-header { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#2563eb; color:#fff; font-weight:600; }
-        .chat-min { background:transparent; border:none; color:#fff; cursor:pointer; padding:4px 8px; }
-        .chat-body { display:flex; flex-direction:column; height:360px; }
-        .chat-messages { flex:1; overflow-y:auto; padding:10px; background:#fff; }
-        .chat-row { margin:6px 0; }
-        .chat-meta { color:#6b7280; font-size:12px; margin-bottom:2px; }
-        .chat-bubble { display:inline-block; max-width:85%; background:#f3f4f6; border:1px solid #e5e7eb; border-radius:14px; padding:8px 10px; font-size:13px; }
-        .chat-form { display:flex; gap:8px; padding:8px; border-top:1px solid #e5e7eb; }
-        .chat-input { flex:1; padding:8px 10px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; }
-        .chat-send { background:#2563eb; color:#fff; border:none; padding:8px 12px; border-radius:10px; font-weight:600; cursor:pointer; }
-        .chat-send:hover { background:#1d4ed8; }
-        .hidden { display:none; }
     </style>
 </head>
 <body>
@@ -89,7 +74,7 @@
     <div class="card inventory-card" style="flex:0.4;">
         <h3 style="margin:6px 0 12px;">Inventory (Reference)</h3>
 
-        <!-- 🔹 Filter bar (added) -->
+        <!-- 🔹 Filter bar -->
         <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center;">
             <input type="text" id="filterInput" placeholder="Search by name, asset ID, or UID"
                    style="flex:1; padding:6px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px;">
@@ -163,7 +148,7 @@
                 <input id="status" name="status" type="text" placeholder="Status" readonly>
                 <input id="purchase_date" name="purchase_date" type="text" placeholder="Purchase Date" readonly>
             </div>
-                        <div class="row" style="margin-top:10px;">
+            <div class="row" style="margin-top:10px;">
                 <input name="borrow_date" type="date" placeholder="Borrow Date">
                 <input name="due_date" type="date" placeholder="Return Date">
             </div>
@@ -318,101 +303,8 @@ document.getElementById('scanStickerBtn').addEventListener('click', async () => 
         alert("Error scanning sticker: " + err.message);
     }
 });
-</script>
 
-<!-- Chat widget (unchanged) -->
-<div id="borrow-chat" class="chat-box">
-    <div class="chat-header">
-        <span>Borrow Chat</span>
-        <button id="chatToggle" class="chat-min">Minimize</button>
-    </div>
-    <div id="chatBody" class="chat-body">
-        <div id="chatMessages" class="chat-messages"></div>
-        <form id="chatForm" class="chat-form">
-            @csrf
-            <input id="chatInput" class="chat-input" type="text" name="body" placeholder="Type a message…" autocomplete="off">
-            <button type="submit" class="chat-send">Send</button>
-        </form>
-    </div>
-</div>
-
-<script>
-// Borrow page chat polling logic (unchanged)
-(() => {
-    const ROOM = 'borrow';
-    const CURRENT_USER_ID = @json(auth()->id());
-    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-    const CSRF = csrfMeta ? csrfMeta.content : '';
-    const messagesEl = document.getElementById('chatMessages');
-    const formEl     = document.getElementById('chatForm');
-    const inputEl    = document.getElementById('chatInput');
-    const toggleBtn  = document.getElementById('chatToggle');
-    const chatBody   = document.getElementById('chatBody');
-    let lastId = 0;
-    let minimized = false;
-
-    toggleBtn.addEventListener('click', () => {
-        minimized = !minimized;
-        chatBody.classList.toggle('hidden', minimized);
-        toggleBtn.textContent = minimized ? 'Open' : 'Minimize';
-    });
-
-    function escapeHtml(str){ return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s])); }
-
-    function appendMsg(m){
-        const mine = (CURRENT_USER_ID && Number(CURRENT_USER_ID) === Number(m.user_id));
-        const row = document.createElement('div');
-        row.className = 'chat-row';
-        const time = new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-        row.innerHTML = `
-            <div class="chat-meta" style="text-align:${mine ? 'right' : 'left'}">
-                <span style="font-weight:600;color:#374151;">${escapeHtml(m.user?.name ?? m.guest_name ?? 'Guest')}</span>
-                <span style="margin-left:6px;">${time}</span>
-            </div>
-            <div style="text-align:${mine ? 'right' : 'left'}">
-                <span class="chat-bubble">${escapeHtml(m.body)}</span>
-            </div>`;
-        messagesEl.appendChild(row);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    async function fetchNew(){
-        try{
-            const res = await fetch(`/chat/messages?room=${encodeURIComponent(ROOM)}&after=${lastId}`, {
-                credentials: 'same-origin',
-                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
-            });
-            if(!res.ok) return;
-            const data = await res.json();
-            if(Array.isArray(data) && data.length){
-                data.forEach(m => appendMsg(m));
-                lastId = data[data.length - 1].id;
-            }
-        } catch(e){}
-    }
-
-    formEl.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const body = inputEl.value.trim();
-        if(!body) return;
-        try{
-            const res = await fetch('/chat/messages', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json','X-CSRF-TOKEN': CSRF,'X-Requested-With': 'XMLHttpRequest','Accept': 'application/json' },
-                body: JSON.stringify({ body, room: ROOM })
-            });
-            if (!res.ok) { if (res.status===401){alert('Please log in.');return;} if (res.status===419){alert('Page expired.');return;} return; }
-            inputEl.value = '';
-            await fetchNew();
-        } catch(e){ console.error(e); }
-    });
-
-    fetchNew();
-    setInterval(fetchNew, 3000);
-})();
-
-// 🔹 Inventory Filter (added, case-insensitive)
+// 🔹 Inventory Filter (case-insensitive)
 const filterInput = document.getElementById('filterInput');
 const statusFilter = document.getElementById('statusFilter');
 const table = document.querySelector('.inventory-card table');

@@ -10,48 +10,73 @@ use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\ItemImportController;
 use App\Http\Controllers\TechnicalDashboardController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\ItemStatusController; // ← NEW (for mark-available)
-use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ItemStatusController;
+// use App\Http\Controllers\ChatController; // ❌ removed
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\PublicRegisterController;
 
 // Notifications
 use App\Notifications\GenericDatabaseNotification;
 
 // ── Home / Welcome ─────────────────────────────────────────────────────
 Route::get('/', function () {
+    // Force logout if the user is not admin or technical
     if (auth()->check()) {
-        return match (auth()->user()->role) {
-            'admin'     => redirect()->route('nfc.inventory'),        // admins → inventory
-            'technical' => redirect()->route('technical.dashboard'),  // technical → technical dashboard
-            default     => redirect()->route('borrow.index'),         // others → borrow
-        };
+        if (in_array(auth()->user()->role, ['admin', 'technical'])) {
+            return match (auth()->user()->role) {
+                'admin'     => redirect()->route('nfc.inventory'),
+                'technical' => redirect()->route('technical.dashboard'),
+            };
+        }
+
+        // 👇 Force logout for normal user sessions (student/staff)
+        auth()->logout();
+        session()->invalidate();
+        session()->regenerateToken();
     }
-    return view('welcome'); // guests see welcome first
-});
+
+    return view('welcome'); // Always show welcome for public
+})->name('home');
 
 // (Public) keep old link working for everyone
 Route::redirect('/nfc-inventory', '/nfc/inventory');
 
 // ── Public pages ───────────────────────────────────────────────────────
+
+// ✅ Main public registration now uses PublicRegisterController (Option B)
+Route::get('/register', [PublicRegisterController::class, 'showForm'])
+    ->name('public.register.form');
+Route::post('/register', [PublicRegisterController::class, 'store'])
+    ->name('public.register.store');
+
+// Legacy /register-uid route (kept so old links still work)
+Route::get('/register-uid', [PublicRegisterController::class, 'showForm'])
+    ->name('public.registeruid.form');
+Route::post('/register-uid', [PublicRegisterController::class, 'store'])
+    ->name('public.registeruid.store');
+
+// After successful registration (go to borrow page)
 Route::get('/borrow', [BorrowController::class, 'index'])->name('borrow.index');
+
+// History still public
 Route::get('/history', [HistoryController::class, 'index'])->name('history.index');
 
-// Public endpoint so guests can scan/fetch item details on the borrow page
+// Public endpoint for fetching item details by UID
 Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
 
-// ── Guest-friendly Chat (no auth; throttled) ───────────────────────────
-Route::middleware(['throttle:60,1'])->group(function () {
-    Route::get('/chat/messages',  [ChatController::class, 'index'])->name('chat.index');  // guests OK
-    Route::post('/chat/messages', [ChatController::class, 'store'])->name('chat.store');  // guests OK
-});
+// ── Guest-friendly Chat ────────────────────────────────────────────────
+// (Removed)
+// Route::middleware(['throttle:60,1'])->group(function () {
+//     Route::get('/chat/messages',  [ChatController::class, 'index'])->name('chat.index');
+//     Route::post('/chat/messages', [ChatController::class, 'store'])->name('chat.store');
+// });
 
-// ── Reports (PUBLIC: guests can open & submit) ─────────────────────────
+// ── Reports (PUBLIC) ───────────────────────────────────────────────────
 Route::get('/reports/create', [ReportController::class, 'create'])->name('reports.create');
 Route::post('/reports', [ReportController::class, 'store'])
-    ->middleware('throttle:20,1') // rate-limit submissions
+    ->middleware('throttle:20,1')
     ->name('reports.store');
 
-// (optional pretty alias)
 Route::redirect('/report', '/reports/create')->name('report.alias');
 
 // ── Auth-only (any logged-in user) ─────────────────────────────────────
@@ -66,11 +91,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnItem'])->name('borrow.return');
     Route::delete('/borrow/{id}', [BorrowController::class, 'destroy'])->name('borrow.destroy');
 
-    // History: import from Google Sheets
+    // History import
     Route::post('/history/import/google', [HistoryController::class, 'importFromGoogleSheet'])
         ->name('history.import.google');
 
-    // ── Notifications (KEEP these) ─────────────────────────────────────
+    // Notifications
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])
         ->name('notifications.unreadCount');
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])
@@ -78,7 +103,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markOneRead'])
         ->name('notifications.markOneRead');
 
-    // ── TEMP: smoke-test a notification (REMOVE later) ─────────────────
+    // Test notification
     Route::get('/notify-test', function () {
         auth()->user()->notify(
             new GenericDatabaseNotification('Test notice', 'Hello from the bell!', url('/'))
@@ -88,12 +113,10 @@ Route::middleware('auth')->group(function () {
 });
 
 // ── Admin + Technical ──────────────────────────────────────────────────
-// Now both roles can access these routes
 Route::middleware(['auth', 'role:admin,technical'])->group(function () {
     Route::get('/technical', [TechnicalDashboardController::class, 'index'])
         ->name('technical.dashboard');
 
-    // Mark item as AVAILABLE (repair finished) — button from "Under Repair" list
     Route::patch('/items/{asset_id}/mark-available', [ItemStatusController::class, 'markAvailable'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.markAvailable');
@@ -101,36 +124,32 @@ Route::middleware(['auth', 'role:admin,technical'])->group(function () {
 
 // ── Admin-only ─────────────────────────────────────────────────────────
 Route::middleware(['auth', 'role:admin'])->group(function () {
-    // Inventory dashboard
+    // Inventory
     Route::get('/nfc/inventory', [InventoryController::class, 'index'])->name('nfc.inventory');
 
-    // Import items from Google Sheets (POST only)
+    // Import items from Google Sheets
     Route::post('/items/import/google', [ItemImportController::class, 'importFromGoogle'])
         ->name('items.import.google');
 
-    // Items CRUD (asset_id is your string PK)
+    // Items CRUD
     Route::post('/items', [InventoryController::class, 'store'])->name('items.store');
-
-    // Items edit/update (needed by the new dropdown "✏️ Edit details")
     Route::get('/items/{asset_id}/edit', [InventoryController::class, 'edit'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.edit');
-
     Route::patch('/items/{asset_id}', [InventoryController::class, 'update'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.update');
-
     Route::delete('/items/{asset_id}', [InventoryController::class, 'destroy'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.destroy');
 
-    // Mark item as UNDER REPAIR (admin triggers this)
+    // Mark as under repair
     Route::patch('/items/{asset_id}/under-repair', [InventoryController::class, 'markUnderRepair'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.markUnderRepair');
 });
 
-// Admin → Reports (strictly admins, with prefix + names)
+// Admin → Reports
 Route::middleware(['auth', 'role:admin'])
     ->prefix('admin/reports')
     ->name('admin.reports.')
@@ -142,14 +161,11 @@ Route::middleware(['auth', 'role:admin'])
             ->whereNumber('report')->whereNumber('index')->name('attachment');
     });
 
-// Breeze / Fortify authentication routes
+// Breeze / Fortify routes
 require __DIR__.'/auth.php';
 
-// Alias so old links route('register-user') still work
-Route::get('/register-user', fn () => redirect()->route('register'))
-    ->name('register-user');
+// Keep legacy links working
+Route::get('/register-user', fn () => redirect()->route('public.register.form'))->name('register-user');
 
-// Breeze/Fortify default redirect → send to our role-based home instead
-Route::get('/dashboard', fn () => redirect('/'))
-    ->middleware('auth')
-    ->name('dashboard');
+// Default dashboard redirect
+Route::get('/dashboard', fn () => redirect('/'))->middleware('auth')->name('dashboard');
