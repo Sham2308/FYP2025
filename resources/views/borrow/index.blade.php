@@ -50,6 +50,67 @@
 
         .inventory-card { flex:0.35; }
         .borrow-card { flex:0.65; }
+
+        /* ---------- Modern Buttons ---------- */
+    .actions{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+
+    .actions a.button,
+    .btn.btn-primary{
+      --radius: 14px;
+      --fill: #2563eb;                 /* primary fill */
+      --glow: rgba(37,99,235,.35);     /* hover glow */
+      --border1: rgba(99,102,241,.85); /* indigo */
+      --border2: rgba(56,189,248,.85); /* sky   */
+
+      position: relative;
+      display: inline-block;
+      padding: 12px 18px;
+      border-radius: var(--radius);
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid transparent;
+      background:
+        linear-gradient(var(--card), var(--card)) padding-box,
+        linear-gradient(135deg, var(--border1), var(--border2)) border-box;
+      color: var(--text);
+      transition: transform .15s ease, filter .15s ease, box-shadow .2s ease, background .2s ease;
+    }
+
+    /* Filled primary (Guest + Register) */
+    .actions a.button:not(.ghost),
+    .btn.btn-primary{
+      color: #fff;
+      background:
+        linear-gradient(var(--fill), var(--fill)) padding-box,
+        linear-gradient(135deg, var(--border1), var(--border2)) border-box;
+    }
+
+    /* Ghost outline (Login) */
+    .actions a.button.ghost{
+      color: var(--text);
+    }
+
+    /* Hover / Active */
+    .actions a.button:hover,
+    .btn.btn-primary:hover{
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+      box-shadow: 0 8px 24px var(--glow);
+    }
+    .actions a.button:active,
+    .btn.btn-primary:active{
+      transform: translateY(0);
+      filter: none;
+    }
+
+    /* Focus ring */
+    .actions a.button:focus-visible,
+    .btn.btn-primary:focus-visible{
+      outline: none;
+      box-shadow:
+        0 0 0 2px rgba(255,255,255,.15),
+        0 0 0 4px rgba(99,102,241,.45);
+    }
     </style>
 </head>
 <body>
@@ -118,7 +179,9 @@
     <!-- Right: Borrow Form + Log -->
     <div class="card borrow-card" style="flex:0.6;">
         <h3 style="margin:6px 0 12px;">Borrow Details</h3>
-
+        <div class="text-center mt-3">
+            <a href="{{ route('register-user') }}" class="btn btn-primary">Register</a>
+        </div>
         @if(session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif

@@ -230,9 +230,6 @@
         @endguest
       </div>
 
-      <div class="text-center mt-3">
-        <a href="{{ route('register-user') }}" class="btn btn-primary">Register</a>
-      </div>
     </section>
   </main>
 </body>

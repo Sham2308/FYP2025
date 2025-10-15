@@ -86,7 +86,7 @@
 
       <div class="actions">
         <button type="submit" class="btn btn-primary">Save</button>
-        <a href="{{ url('/') }}" class="btn btn-secondary" style="display:inline-flex;align-items:center;justify-content:center">Cancel</a>
+        <a href="{{ url('/borrow') }}" class="btn btn-secondary" style="display:inline-flex;align-items:center;justify-content:center">Cancel</a>
       </div>
     </form>
   </main>
