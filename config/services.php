@@ -42,5 +42,6 @@ return [
         'webapp_url' => env('GOOGLE_SHEET_WEBAPP_URL', 'https://script.google.com/macros/s/AKfycbxowIMoinKvC44WYWa9GDx0krEqW80c7AmnvR3oSun9cdpDNqsz8UiHIk_P8PnDLKxv/exec'),
         'secret'     => env('GOOGLE_SHEET_WEBAPP_SECRET', 'Tapnborrow2025!'),
         'borrow_details_csv_url'  => env('GOOGLE_BORROW_DETAILS_CSV_URL','https://docs.google.com/spreadsheets/d/e/2PACX-1vQkLunsADMbo4fBegY688gNd4PHDCzua13M0zVX29jtRXZaQzB-UqjOQg1llPEMjx4P9fJF1tiw6f-x/pub?gid=620470403&single=true&output=csv'),
+        'credentials_path' => env('GOOGLE_SHEETS_CREDENTIALS_PATH'),
     ],
 ];

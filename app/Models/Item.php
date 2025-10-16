@@ -13,9 +13,9 @@ class Item extends Model
     protected $primaryKey = 'asset_id';   // asset_id is the PK
     public $incrementing = false;         // asset_id is not auto-increment
     protected $keyType = 'string';        // asset_id is a string
-
+    
     protected $fillable = [
-        'uid',
+        'item_id',
         'asset_id',
         'name',
         'detail',

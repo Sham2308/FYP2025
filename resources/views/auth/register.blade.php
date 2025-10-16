@@ -1,23 +1,17 @@
 <x-guest-layout>
-    {{-- Remove the Laravel logo --}}
     <x-slot name="logo"></x-slot>
 
-    {{-- Force full-page dark background (overrides Breeze bg-gray-100) --}}
     <div class="fixed inset-0 bg-[#0f172a]"></div>
 
-    <!-- Content -->
     <div class="relative z-10 min-h-screen flex items-center justify-center">
-
-        <!-- White card: hard cap width so it can't expand -->
         <div class="w-full" style="max-width: 480px;">
             <div class="bg-white shadow-xl rounded-2xl p-8">
 
-                <!-- Title -->
                 <h1 class="text-4xl font-bold mb-8 text-center text-blue-600">
                     Register User
                 </h1>
 
-                <form method="POST" action="{{ route('register') }}" class="space-y-6">
+                <form method="POST" action="{{ route('register-user.store') }}" class="space-y-6">
                     @csrf
 
                     {{-- UID --}}
@@ -29,9 +23,10 @@
                                 name="uid"
                                 type="text"
                                 value="{{ old('uid') }}"
+                                readonly
                                 required
                                 autocomplete="off"
-                                class="flex-1 h-11 border border-gray-300 px-3 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                class="flex-1 h-11 border border-gray-300 px-3 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                             >
                             <button
                                 type="button"
@@ -41,7 +36,7 @@
                                 Scan Card
                             </button>
                         </div>
-                        @error('uid') <p class="text-sm text-red-600 mt-1">{{ $message }}</p> @enderror
+                        <p id="scanStatus" class="text-sm text-gray-500 mt-2"></p>
                     </div>
 
                     {{-- Name --}}
@@ -54,12 +49,11 @@
                             value="{{ old('name') }}"
                             required
                             autocomplete="name"
-                            class="w-full h-11 border border-gray-300 px-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            class="w-full h-11 border border-gray-300 px-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                         >
-                        @error('name') <p class="text-sm text-red-600 mt-1">{{ $message }}</p> @enderror
                     </div>
 
-                    {{-- Staff / Student ID --}}
+                    {{-- Student / Staff ID --}}
                     <div>
                         <label for="staff_id" class="block text-base text-blue-600 mb-2">Student / Staff ID</label>
                         <input
@@ -68,12 +62,11 @@
                             type="text"
                             value="{{ old('staff_id') }}"
                             autocomplete="off"
-                            class="w-full h-11 border border-gray-300 px-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            class="w-full h-11 border border-gray-300 px-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                         >
-                        @error('staff_id') <p class="text-sm text-red-600 mt-1">{{ $message }}</p> @enderror
                     </div>
 
-                    {{-- Save / Cancel --}}
+                    {{-- Buttons --}}
                     <div class="flex gap-3 pt-2">
                         <button
                             type="submit"
@@ -82,7 +75,7 @@
                             Save
                         </button>
                         <a
-                            href="{{ url('/') }}"
+                            href="{{ url('/borrow') }}"
                             class="h-11 px-6 rounded-md bg-gray-600 text-white font-medium hover:bg-gray-700 flex items-center justify-center"
                         >
                             Cancel
@@ -94,10 +87,51 @@
     </div>
 
     <script>
-        // Example only: replace with your real NFC integration
-        document.getElementById('scanBtn')?.addEventListener('click', () => {
-            const el = document.getElementById('uid');
-            if (el && !el.value) el.value = 'FAKE-UID-123456';
+        const scanBtn = document.getElementById('scanBtn');
+        const uidField = document.getElementById('uid');
+        const statusText = document.getElementById('scanStatus');
+
+        scanBtn.addEventListener('click', async () => {
+            statusText.innerHTML = "🟡 Waiting for card scan...";
+            uidField.value = "";
+
+            try {
+                // 🔹 Tell Laravel to expect a scan (POST)
+                const req = await fetch("/api/request-scan" , {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
+                });
+                const msg = await req.json();
+                console.log("Request-scan response:", msg);
+            } catch (err) {
+                console.error("Error requesting scan:", err);
+                statusText.innerHTML = "❌ Failed to request scan.";
+                return;
+            }
+
+            // 🔹 Poll for UID (max 20s)
+            let uid = null;
+            for (let i = 0; i < 20; i++) {
+                await new Promise(r => setTimeout(r, 1000));
+                try {
+                    const res = await fetch("/api/read-uid");
+                    const data = await res.json();
+                    console.log("Polling:", data);
+                    if (data.uid) {
+                        uid = data.uid;
+                        break;
+                    }
+                } catch (err) {
+                    console.error("Poll error:", err);
+                }
+            }
+
+            if (uid) {
+                uidField.value = uid;
+                statusText.innerHTML = "✅ Card detected successfully!";
+            } else {
+                statusText.innerHTML = "❌ No card detected. Try again.";
+            }
         });
     </script>
 </x-guest-layout>

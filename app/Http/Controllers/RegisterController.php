@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Services\GoogleSheetService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class RegisterController extends Controller
 {
@@ -18,7 +19,8 @@ class RegisterController extends Controller
     // Show the register form
     public function index()
     {
-        $uid = Cache::get('scanned_uid'); // UID set by Arduino
+        Cache::forget('last_register_uid');
+        $uid = Cache::get('last_register_uid');
         return view('register.index', compact('uid'));
     }
 
@@ -28,61 +30,67 @@ class RegisterController extends Controller
         $request->validate([
             'uid' => 'required',
             'name' => 'required',
-            'student_id' => 'required',
+            'staff_id' => 'required',
         ]);
 
-        // Append user row into "Users" tab
-        $this->sheets->appendRow([
-            $request->uid,
-            $request->student_id,
-            $request->name,
-        ], config('services.google.users_range'));
+        try {
+            Log::info("💾 [RegisterController@store] Save button clicked", $request->all());
 
-        return redirect('/nfc-inventory')->with('success', 'User registered successfully!');
+            // ✅ Append to Google Sheets
+            $this->sheets->appendRow([
+                $request->uid,
+                $request->staff_id,
+                $request->name,
+            ], config('services.google.users_range', 'Users!A:Z'));
+
+            Log::info("✅ Successfully added user to Google Sheets");
+
+            return redirect('/borrow')->with('success', 'Account registered successfully!');
+
+        } catch (\Exception $e) {
+            Log::error("❌ Failed to save user to Google Sheets: " . $e->getMessage());
+            return back()->with('error', 'Failed to save user to Google Sheets. Check server logs for details.');
+        }
     }
 
-    // Called when user presses "Scan Card" button (browser)
+    // Browser requests ESP32 to start register scan
     public function startScan()
     {
-        Cache::put('scan_requested', true, 30); // valid for 30 seconds
+        Cache::put('register_scan_ready', 'card', now()->addSeconds(20));
+        Log::info("✅ [request-register-scan] Key stored = card");
         return response()->json(['status' => 'ready']);
     }
 
-    // Arduino polls this to know if scan requested
+    // Arduino polls this endpoint (/api/register-scan-next)
     public function scanNext()
     {
-        if (Cache::get('scan_requested')) {
-            return response()->json(['status' => 'ready']);
-        }
-        return response()->json(['status' => 'idle']);
+        $status = Cache::get('register_scan_ready', 'idle');
+        Log::info("🔍 [register-scan-next] Current value: {$status}");
+        return response()->json(['status' => $status]);
     }
 
-    // Arduino sends UID here after scanning
+    // Arduino sends UID to Laravel (/api/register-register-uid)
     public function captureUID(Request $request)
     {
-        // Force decode JSON if Laravel didn’t parse automatically
         $data = $request->json()->all();
-        $uid = $data['uid'] ?? $request->input('uid');
+        $uid  = $data['uid'] ?? $request->input('uid');
 
         if ($uid) {
-            // Store UID in cache (since API routes don’t share session easily)
-            Cache::put('scanned_uid', $uid, now()->addMinutes(5));
-
+            Cache::put('last_register_uid', $uid, now()->addMinutes(5));
+            Log::info("📌 Register UID received: {$uid}");
             return response()->json(['status' => 'ok', 'uid' => $uid]);
         }
 
         return response()->json(['status' => 'error', 'message' => 'UID missing'], 400);
     }
 
-    // Browser polls this to auto-fill UID field
+    // Browser fetches UID after scan (/api/read-register-uid)
     public function getUID()
     {
-        $uid = Cache::get('scanned_uid');
-
-        if ($uid) {
-            return response()->json(['uid' => $uid]);
-        }
-
-        return response()->json(['uid' => null], 404);
+        $uid = Cache::get('last_register_uid');
+        Log::info("📖 [read-register-uid] returning uid = " . ($uid ?? 'null'));
+        return $uid
+            ? response()->json(['uid' => $uid])
+            : response()->json(['uid' => null], 404);
     }
 }

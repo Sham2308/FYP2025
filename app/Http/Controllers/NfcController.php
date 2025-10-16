@@ -55,7 +55,7 @@ class NfcController extends Controller
                 $data['status'] ?? '',
                 $data['purchase_date'] ?? '',
                 $data['remarks'] ?? '',
-            ]);
+            ],'Items!A:J');
 
             return response()->json(['status' => 'success', 'data' => $scan], 201);
         } catch (QueryException $e) {
@@ -110,7 +110,7 @@ class NfcController extends Controller
                 $data['status'] ?? '',
                 $data['purchase_date'] ?? '',
                 $data['remarks'] ?? '',
-            ]);
+            ],'Items!A:J');
 
             return response()->json(['status' => 'registered', 'data' => $scan], 201);
         } catch (QueryException $e) {

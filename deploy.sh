@@ -1,31 +1,39 @@
 #!/bin/bash
+
+set -e
+
 echo "=========================================="
 echo "🚀 Starting Laravel deployment..."
 echo "=========================================="
 
 echo "📥 Pulling latest changes from GitHub..."
-git pull origin main
+git pull origin main-2
+
+echo "🧹 Fixing permissions..."
+sudo chown -R www-data:www-data /var/www/project2/storage /var/www/project2/bootstrap/cache
+sudo chmod -R 775 /var/www/project2/storage /var/www/project2/bootstrap/cache
 
 echo "🧹 Cleaning old caches..."
-php artisan config:clear
-php artisan clear-compiled
-php artisan package:discover --ansi
+sudo -u www-data php artisan config:clear
+sudo -u www-data php artisan cache:clear
+sudo -u www-data php artisan route:clear
+sudo -u www-data php artisan view:clear
+sudo -u www-data php artisan clear-compiled
+sudo -u www-data php artisan package:discover --ansi
 
-echo "🔧 Clearing and rebuilding caches..."
-php artisan config:clear
-php artisan cache:clear
-php artisan route:clear
-php artisan view:clear
-php artisan config:cache
+echo "🔧 Rebuilding caches..."
+sudo -u www-data php artisan config:cache
 
 echo "🛠️ Running database migrations..."
-php artisan migrate --force
+sudo -u www-data php artisan migrate --force
 
 echo "♻️ Restarting PHP-FPM..."
-systemctl restart php8.3-fpm
+sudo --non-interactive /usr/bin/systemctl restart php8.3-fpm.service
 
 echo "=========================================="
 echo "✅ Deployment finished successfully!"
 echo "=========================================="
+
+
 
 

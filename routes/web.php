@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 
 // Controllers
+use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BorrowController;
 use App\Http\Controllers\InventoryController;
@@ -32,9 +33,52 @@ Route::get('/', function () {
 // (Public) keep old link working for everyone
 Route::redirect('/nfc-inventory', '/nfc/inventory');
 
+// ✅ Custom register route (no conflict with Auth)
+Route::get('/user-register', [RegisterController::class, 'index'])->name('register-user.index');
+Route::post('/user-register', [RegisterController::class, 'store'])->name('register-user.store');
+
+/// ── Public Borrow (no auth required) ───────────────────────────────
+
+Route::get('/borrow', [BorrowController::class, 'index'])->name('borrow.index');
+
+Route::get('/return', [\App\Http\Controllers\BorrowController::class, 'returnIndex'])->name('return.index');
+Route::get('/return/fetch/{cardUid}', [\App\Http\Controllers\BorrowController::class, 'fetchBorrowedItems']);
+Route::post('/return/confirm', [\App\Http\Controllers\BorrowController::class, 'confirmReturnByCard'])->name('return.confirm');
+
+// Return item (adds new row with status=available)
+Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnByUid'])->name('borrow.return');
+
+// Delete borrow record from Google Sheets (by Item ID)
+Route::delete('/borrow/delete/{itemId}', [BorrowController::class, 'delete'])->name('borrow.delete');
+Route::delete('/borrow/delete/{rowIndex}', [BorrowController::class, 'delete'])->name('borrow.delete');
+
+
+
+// Public fetch endpoints
+Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
+Route::get('/borrow/user/{uid}', [BorrowController::class, 'getUserByUID'])->name('borrow.getUser');
+
+// Public endpoint for scanning or auto-filling user info
+Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
+Route::get('/borrow/user/{uid}', [BorrowController::class, 'getUserByUID'])->name('borrow.getUser');
+
+
+
 // ── Public pages ───────────────────────────────────────────────────────
 Route::get('/borrow', [BorrowController::class, 'index'])->name('borrow.index');
 Route::get('/history', [HistoryController::class, 'index'])->name('history.index');
+
+Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnByUid'])->name('borrow.publicReturn');
+
+// ── Live-reload JSON for NFC Inventory ─────────────────────────────────
+Route::get('/items/last-sync', fn () =>
+    response()->json(['last_sync_at' => Cache::get('items_last_sync_at')])
+    )->name('items.last-sync');
+
+// Public borrow save 
+Route::post('/borrow/publicStore', [BorrowController::class, 'publicStore'])
+    ->name('borrow.publicStore');
+
 
 // Public endpoint so guests can scan/fetch item details on the borrow page
 Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
@@ -63,7 +107,6 @@ Route::middleware('auth')->group(function () {
 
     // Borrow actions (mutating)
     Route::post('/borrow', [BorrowController::class, 'store'])->name('borrow.store');
-    Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnItem'])->name('borrow.return');
     Route::delete('/borrow/{id}', [BorrowController::class, 'destroy'])->name('borrow.destroy');
 
     // History: import from Google Sheets
@@ -100,22 +143,26 @@ Route::middleware(['auth', 'role:technical'])->group(function () {
 });
 
 // ── Admin-only ─────────────────────────────────────────────────────────
-// CHANGED: use 'role:admin' instead of 'admin'
 Route::middleware(['auth', 'role:admin'])->group(function () {
-    // Inventory dashboard
+    // Inventory
     Route::get('/nfc/inventory', [InventoryController::class, 'index'])->name('nfc.inventory');
 
-    // Import items from Google Sheets (POST only)
-    Route::post('/items/import/google', [ItemImportController::class, 'importFromGoogle'])
-        ->name('items.import.google');
+    // Import items from Google Sheets
+    Route::post('/items/import/google', [ItemImportController::class, 'importFromGoogle'])->name('items.import.google');
 
-    // Items CRUD (asset_id is your string PK)
+    // Items CRUD
     Route::post('/items', [InventoryController::class, 'store'])->name('items.store');
+    Route::get('/items/{asset_id}/edit', [InventoryController::class, 'edit'])
+        ->where('asset_id', '[A-Za-z0-9\-_]+')
+        ->name('items.edit');
+    Route::patch('/items/{asset_id}', [InventoryController::class, 'update'])
+        ->where('asset_id', '[A-Za-z0-9\-_]+')
+        ->name('items.update');
     Route::delete('/items/{asset_id}', [InventoryController::class, 'destroy'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.destroy');
 
-    // Mark item as UNDER REPAIR (admin triggers this)
+    // Mark as under repair
     Route::patch('/items/{asset_id}/under-repair', [InventoryController::class, 'markUnderRepair'])
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.markUnderRepair');

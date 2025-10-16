@@ -104,39 +104,122 @@ class GoogleSheetService
             $body,
             $params
         );
+        
     }
 
-    // ✅ Delete row (for BorrowDetails or Items)
-    public function deleteRow(string $sheetName, int $rowNumber): bool
-    {
-        $this->assertReady();
+    /**
+ * ✅ Allow controllers to safely access Google Sheets service
+ */
+public function getService(): ?\Google\Service\Sheets
+{
+    return $this->service;
+}
 
-        try {
-            $requests = [
-                new \Google\Service\Sheets\Request([
-                    'deleteDimension' => [
-                        'range' => [
-                            'sheetId'   => 0, // default to first sheet tab (adjust if needed)
-                            'dimension' => 'ROWS',
-                            'startIndex'=> $rowNumber - 1, // 0-based index
-                            'endIndex'  => $rowNumber
-                        ]
-                    ]
-                ])
-            ];
+public function getSpreadsheetId(): ?string
+{
+    return $this->spreadsheetId;
+}
 
-            $batchUpdateRequest = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest([
-                'requests' => $requests
-            ]);
 
-            $this->service->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdateRequest);
-            Log::info("✅ Deleted row {$rowNumber} from {$sheetName}");
-            return true;
-        } catch (\Throwable $e) {
-            Log::error('❌ deleteRow() failed: ' . $e->getMessage());
+
+public function deleteRowByItemId(string $sheetName, string $itemId): bool
+{
+    if (!$this->service || !$this->spreadsheetId) {
+        \Log::error('❌ Google Sheets not initialized.');
+        return false;
+    }
+
+    try {
+        $response = $this->service->spreadsheets_values->get($this->spreadsheetId, $sheetName);
+        $rows = $response->getValues();
+        if (!$rows) return false;
+
+        $rowIndex = null;
+        foreach ($rows as $i => $row) {
+            // assuming ItemID is in column D (index 3)
+            if (isset($row[3]) && trim($row[3]) === $itemId) {
+                $rowIndex = $i + 1; // +1 because Sheets are 1-indexed
+                break;
+            }
+        }
+
+        if (!$rowIndex) {
+            \Log::warning("⚠️ ItemID {$itemId} not found in {$sheetName}");
             return false;
         }
+
+        // Delete that row
+        $batchUpdateRequest = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest([
+            'requests' => [[
+                'deleteDimension' => [
+                    'range' => [
+                        'sheetId' => $this->getSheetIdByName($sheetName),
+                        'dimension' => 'ROWS',
+                        'startIndex' => $rowIndex - 1,
+                        'endIndex' => $rowIndex,
+                    ],
+                ],
+            ]],
+        ]);
+
+        $this->service->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdateRequest);
+        \Log::info("✅ Deleted row {$rowIndex} ({$itemId}) from {$sheetName}");
+        return true;
+    } catch (\Throwable $e) {
+        \Log::error("❌ Failed to delete row by itemId: " . $e->getMessage());
+        return false;
     }
+}
+public function deleteRowByRowIndex(string $sheetName, int $rowIndex): bool
+{
+    try {
+        $this->assertReady();
+
+        if ($rowIndex <= 1) {
+            \Log::warning("⚠️ Attempted to delete header or invalid row index: {$rowIndex}");
+            return false;
+        }
+
+        $sheetId = $this->getSheetIdByName($sheetName);
+
+        $batchUpdateRequest = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest([
+            'requests' => [[
+                'deleteDimension' => [
+                    'range' => [
+                        'sheetId' => $sheetId,
+                        'dimension' => 'ROWS',
+                        'startIndex' => $rowIndex - 1,
+                        'endIndex' => $rowIndex,
+                    ],
+                ],
+            ]],
+        ]);
+
+        $this->service->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdateRequest);
+        \Log::info("✅ Deleted row #{$rowIndex} from {$sheetName}");
+        return true;
+    } catch (\Throwable $e) {
+        \Log::error("❌ deleteRowByRowIndex failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+
+
+private function getSheetIdByName(string $sheetName)
+{
+    $spreadsheet = $this->service->spreadsheets->get($this->spreadsheetId);
+    foreach ($spreadsheet->getSheets() as $sheet) {
+        $properties = $sheet->getProperties();
+        if ($properties->getTitle() === $sheetName) {
+            return $properties->getSheetId();
+        }
+    }
+    throw new \Exception("Sheet {$sheetName} not found");
+}
+
+
+
 
     // ✅ Update a specific cell range (for return/update status)
     public function updateRow(string $sheetName, string $range, array $values): bool
@@ -192,4 +275,96 @@ class GoogleSheetService
         }
         return false;
     }
+    // ✅ Sync Item IDs (Column A) from Google Sheets into MySQL
+public function syncItemsFromSheet(): int
+{
+    $this->assertReady();
+    $range = 'Items!A:E'; // A = Item ID, B = Asset ID, C = Name, D = Status, E = Purchase Date
+
+    try {
+        $values = $this->getValues($range)->getValues();
+        if (!$values || count($values) <= 1) {
+            Log::warning('⚠️ No data found in Items sheet.');
+            return 0;
+        }
+
+        $rows = array_slice($values, 1); // skip header
+        $count = 0;
+
+        foreach ($rows as $r) {
+            $itemId   = $r[0] ?? ''; // ✅ Column A (Item ID)
+            $assetId  = $r[1] ?? ''; // ✅ Column B (Asset ID)
+            $name     = $r[2] ?? '';
+            $status   = $r[3] ?? 'available';
+            $purchase = $r[4] ?? '';
+
+            if (empty($itemId)) continue; // must have Item ID
+
+            \App\Models\Item::updateOrCreate(
+                ['item_id' => $itemId], // <-- use item_id as key
+                [
+                    'asset_id'       => $assetId,
+                    'name'           => $name,
+                    'status'         => $status,
+                    'purchase_date'  => $purchase,
+                ]
+            );
+            $count++;
+        }
+
+        Log::info("✅ Synced {$count} items from Google Sheets.");
+        return $count;
+    } catch (\Throwable $e) {
+        Log::error('❌ syncItemsFromSheet failed: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Update item status in the Items sheet by matching asset_id or item_id.
+ */
+public function updateItemStatus($assetIdOrItemId, $newStatus)
+{
+    try {
+        if (!$this->isReady()) return false;
+
+        $range = 'Items!A:H';
+        $response = $this->service->spreadsheets_values->get($this->spreadsheetId, $range);
+        $values = $response->getValues();
+
+        if (!$values || count($values) < 2) return false;
+
+        // Normalize newStatus (Title Case for sheet)
+        $newStatusTitle = ucwords(strtolower(trim($newStatus)));
+
+        // Find the matching row (asset_id or item_id)
+        foreach ($values as $index => $row) {
+            if ($index === 0) continue; // skip header
+            $itemId  = $row[0] ?? ''; // Item ID
+            $assetId = $row[1] ?? ''; // Asset ID
+
+            if ($assetIdOrItemId === $itemId || $assetIdOrItemId === $assetId) {
+                $cell = 'H' . ($index + 1); // Status column (H)
+                $body = new \Google\Service\Sheets\ValueRange([
+                    'values' => [[ $newStatusTitle ]]
+                ]);
+                $params = ['valueInputOption' => 'RAW'];
+                $this->service->spreadsheets_values->update(
+                    $this->spreadsheetId,
+                    $cell,
+                    $body,
+                    $params
+                );
+                return true;
+            }
+        }
+
+        return false;
+    } catch (\Throwable $e) {
+        \Log::error('updateItemStatus() failed: '.$e->getMessage());
+        return false;
+    }
+}
+
+
 }

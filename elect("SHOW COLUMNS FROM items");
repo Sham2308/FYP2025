@@ -1,0 +1,30 @@
+[90m= [39m[34;4mIlluminate\Database\Eloquent\Collection[39;24m {#5889
+    [34mall[39m: [
+      [34;4mApp\Models\Item[39;24m {#5882
+        [34mitem_id[39m: [36mnull[39m,
+        [34masset_id[39m: "[32mPB_SICT_00001[39m",
+        [34mname[39m: "[32mCamera Lens (50mm)[39m",
+      },
+      [34;4mApp\Models\Item[39;24m {#5881
+        [34mitem_id[39m: [36mnull[39m,
+        [34masset_id[39m: "[32mPB_SICT_00002[39m",
+        [34mname[39m: "[32mWooden Hand[39m",
+      },
+      [34;4mApp\Models\Item[39;24m {#5880
+        [34mitem_id[39m: [36mnull[39m,
+        [34masset_id[39m: "[32mPB_SICT_00003[39m",
+        [34mname[39m: "[32mInsta360 One RS[39m",
+      },
+      [34;4mApp\Models\Item[39;24m {#5879
+        [34mitem_id[39m: [36mnull[39m,
+        [34masset_id[39m: "[32mPB_SICT_00004[39m",
+        [34mname[39m: "[32mSpyder5ELITE[39m",
+      },
+      [34;4mApp\Models\Item[39;24m {#5878
+        [34mitem_id[39m: [36mnull[39m,
+        [34masset_id[39m: "[32mPB_SICT_00005[39m",
+        [34mname[39m: "[32mLed Panel Light[39m",
+      },
+    ],
+  }
+

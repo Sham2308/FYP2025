@@ -1,6 +1,5 @@
 <?php
 
-// app/Http/Controllers/ItemImportController.php
 namespace App\Http\Controllers;
 
 use App\Models\Item;
@@ -10,38 +9,45 @@ use Illuminate\Support\Facades\Log;
 
 class ItemImportController extends Controller
 {
+    /**
+     * Import inventory items from Google Sheet CSV.
+     */
     public function importFromGoogle(Request $request)
     {
-        Log::info('🚀 Import route fired', ['url' => env('GOOGLE_SHEET_CSV_URL')]);
+        Log::info('🚀 [Import] Import route triggered', ['csv_url' => env('GOOGLE_SHEET_CSV_URL')]);
 
         $csvUrl = env('GOOGLE_SHEET_CSV_URL');
         if (!$csvUrl) {
-            return back()->with('error', 'GOOGLE_SHEET_CSV_URL is not set in .env');
+            $message = '⚠️ GOOGLE_SHEET_CSV_URL is not set in .env file.';
+            return $request->ajax()
+                ? response()->json(['success' => false, 'message' => $message], 400)
+                : back()->with('error', $message);
         }
 
         try {
             $res = Http::timeout(20)->get($csvUrl);
-
             if (!$res->ok()) {
-                Log::error('CSV fetch failed', [
-                    'status' => $res->status(),
-                    'body'   => substr($res->body() ?? '', 0, 500),
-                ]);
-                return back()->with('error', 'Failed to fetch CSV (HTTP '.$res->status().')');
+                Log::error('[Import] CSV fetch failed', ['status' => $res->status()]);
+                $message = 'Failed to fetch CSV (HTTP '.$res->status().')';
+                return $request->ajax()
+                    ? response()->json(['success' => false, 'message' => $message], 500)
+                    : back()->with('error', $message);
             }
 
             $rows = $this->parseCsv($res->body());
             if (count($rows) < 2) {
-                Log::warning('CSV parsed but has no data or header row', ['rows_count' => count($rows)]);
-                return back()->with('error', 'CSV has no data or missing header row.');
+                $message = 'CSV file is empty or missing header.';
+                return $request->ajax()
+                    ? response()->json(['success' => false, 'message' => $message], 400)
+                    : back()->with('error', $message);
             }
 
-            // Normalize header: lowercase + trim
             $header = array_map(fn($h) => strtolower(trim($h)), $rows[0]);
-
-            // Optional: ensure required headers exist
             if (!in_array('asset_id', $header)) {
-                return back()->with('error', 'CSV header must include "asset_id".');
+                $message = 'CSV header must include "asset_id".';
+                return $request->ajax()
+                    ? response()->json(['success' => false, 'message' => $message], 400)
+                    : back()->with('error', $message);
             }
 
             $imported = 0;
@@ -50,23 +56,24 @@ class ItemImportController extends Controller
                 if ($this->isEmpty($row)) continue;
 
                 $data = $this->combine($header, $row);
-
                 $assetId = $data['asset_id'] ?? null;
-                if (!$assetId) {
-                    Log::warning('Skipping row without asset_id', ['row' => $row]);
-                    continue;
-                }
+                if (!$assetId) continue;
+
+                $status = strtolower(trim($data['status'] ?? 'available'));
+                $allowedStatuses = ['available', 'borrowed', 'under repair', 'retire', 'stolen', 'missing/lost'];
+                if (!in_array($status, $allowedStatuses)) $status = 'available';
 
                 Item::updateOrCreate(
                     ['asset_id' => $assetId],
                     [
-                        'uid'           => $data['uid'] ?? null,
+                        // 👇 Only change: map "Item ID" -> uid (headers are lowercased)
+                        'uid'           => $data['uid'] ?? $data['item id'] ?? $data['item_id'] ?? null,
                         'name'          => $data['name'] ?? '',
                         'detail'        => $data['detail'] ?? null,
                         'accessories'   => $data['accessories'] ?? null,
                         'type_id'       => $data['type_id'] ?? null,
                         'serial_no'     => $data['serial_no'] ?? null,
-                        'status'        => $data['status'] ?? 'available',
+                        'status'        => $status,
                         'purchase_date' => $this->toSqlDate($data['purchase_date'] ?? null),
                         'remarks'       => $data['remarks'] ?? null,
                     ]
@@ -75,27 +82,32 @@ class ItemImportController extends Controller
                 $imported++;
             }
 
-            return back()->with('success', "Imported/updated {$imported} item(s) from Google Sheet.");
+            $message = "✅ Imported/updated {$imported} item(s) from Google Sheet.";
+            Log::info('[Import] Success', ['count' => $imported]);
+
+            return $request->ajax()
+                ? response()->json(['success' => true, 'message' => $message])
+                : back()->with('success', $message);
+
         } catch (\Throwable $e) {
-            Log::error('Items import failed', ['error' => $e->getMessage()]);
-            return back()->with('error', 'Import failed: '.$e->getMessage());
+            Log::error('[Import] Failed', ['error' => $e->getMessage()]);
+            $message = 'Import failed: '.$e->getMessage();
+            return $request->ajax()
+                ? response()->json(['success' => false, 'message' => $message], 500)
+                : back()->with('error', $message);
         }
     }
 
     private function parseCsv(string $csv): array
     {
-        // Strip UTF-8 BOM if present
         $csv = preg_replace('/^\xEF\xBB\xBF/', '', $csv);
-
         $rows = [];
         $fh = fopen('php://temp', 'r+');
         fwrite($fh, $csv);
         rewind($fh);
+
         while (($r = fgetcsv($fh)) !== false) {
-            // skip blank lines that come through as [null] or ['']
-            if (count($r) === 1 && ($r[0] === null || trim((string)$r[0]) === '')) {
-                continue;
-            }
+            if (count($r) === 1 && ($r[0] === null || trim((string)$r[0]) === '')) continue;
             $rows[] = $r;
         }
         fclose($fh);
@@ -120,23 +132,19 @@ class ItemImportController extends Controller
     }
 
     private function toSqlDate(?string $v): ?string
-{
-    if (!$v) return null;
-    $v = trim($v);
+    {
+        if (!$v) return null;
+        $v = trim($v);
 
-    // try strict known formats first
-    $formats = ['Y-m-d', 'd/m/Y', 'm/d/Y', 'd-m-Y', 'm-d-Y'];
-    foreach ($formats as $fmt) {
-        $dt = \DateTime::createFromFormat($fmt, $v);
-        if ($dt && $dt->format($fmt) === $v) {
-            return $dt->format('Y-m-d'); // MySQL-friendly
+        $formats = ['Y-m-d', 'd/m/Y', 'm/d/Y', 'd-m-Y', 'm-d-Y'];
+        foreach ($formats as $fmt) {
+            $dt = \DateTime::createFromFormat($fmt, $v);
+            if ($dt && $dt->format($fmt) === $v) {
+                return $dt->format('Y-m-d');
+            }
         }
+
+        $ts = strtotime($v);
+        return $ts ? date('Y-m-d', $ts) : null;
     }
-
-    // fallback: let strtotime try
-    $ts = strtotime($v);
-    return $ts ? date('Y-m-d', $ts) : null;
 }
-
-}
-

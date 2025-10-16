@@ -25,10 +25,6 @@ return [
     | their respective settings. Several examples have been configured for
     | you and you are free to add your own as your application requires.
     |
-    | Laravel supports a variety of mail "transport" drivers that can be used
-    | when delivering an email. You may specify which one you're using for
-    | your mailers below. You may also add additional mailers if needed.
-    |
     | Supported: "smtp", "sendmail", "mailgun", "ses", "ses-v2",
     |            "postmark", "resend", "log", "array",
     |            "failover", "roundrobin"
@@ -46,7 +42,8 @@ return [
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,
-            'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+            // ✅ Use your domain instead of IP address for proper EHLO handshake
+            'local_domain' => env('MAIL_EHLO_DOMAIN', 'tapnborrow.com'),
         ],
 
         'ses' => [
@@ -111,8 +108,8 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', 'Example'),
+        'address' => env('MAIL_FROM_ADDRESS', 'noreply@tapnborrow.com'),
+        'name' => env('MAIL_FROM_NAME', 'TapNBorrow'),
     ],
 
 ];
