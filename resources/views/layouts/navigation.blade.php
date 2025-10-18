@@ -1,5 +1,4 @@
 <nav x-data="{ open: false }" class="bg-blue-600 text-white">
-    {{-- prevent Alpine dropdown flash --}}
     <style>[x-cloak]{display:none!important}</style>
 
     @php
@@ -39,7 +38,7 @@
                         </a>
                     @endif
 
-                    {{-- Technical (technicals) --}}
+                    {{-- Technical --}}
                     @if(auth()->user()->role === 'technical')
                         <a href="{{ route('technical.dashboard') }}"
                            class="px-4 py-2 rounded-lg {{ request()->routeIs('technical.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
@@ -47,7 +46,7 @@
                         </a>
                     @endif
 
-                    {{-- Borrow (everyone except technical) --}}
+                    {{-- Borrow --}}
                     @if(auth()->user()->role !== 'technical')
                         <a href="{{ route('borrow.index') }}"
                            class="px-4 py-2 rounded-lg {{ request()->routeIs('borrow.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
@@ -55,7 +54,7 @@
                         </a>
                     @endif
 
-                    {{-- History (adjust the route name if yours is different) --}}
+                    {{-- History --}}
                     <a href="{{ route('history.index') }}"
                        class="px-4 py-2 rounded-lg {{ request()->routeIs('history.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
                         History
@@ -101,36 +100,53 @@
                                 </form>
                             </div>
 
-                            @php $latest = auth()->user()->notifications()->latest()->take(10)->get(); @endphp
+                            {{-- Reports shortcut --}}
+                            <ul class="divide-y">
+                                <li class="p-3 hover:bg-gray-50">
+                                    <a href="{{ route('reports.index') }}" class="block">
+                                        <p class="text-sm font-semibold text-gray-900">Reports</p>
+                                        <p class="text-xs text-gray-500 mt-1">Click to view all latest reports</p>
+                                    </a>
+                                </li>
+                            </ul>
+
+                            {{-- Dynamic notifications --}}
                             <ul class="max-h-80 overflow-auto divide-y">
-                                @forelse($latest as $n)
+                                @forelse(auth()->user()->notifications()->latest()->take(10)->get() as $notification)
                                     <li class="p-3 hover:bg-gray-50">
-                                        <a href="{{ $n->data['url'] ?? '#' }}" class="block">
-                                            <p class="text-sm font-medium {{ $n->read_at ? 'text-gray-500' : 'text-gray-900' }}">
-                                                {{ $n->data['title'] ?? 'Notification' }}
-                                            </p>
-                                            @if(!empty($n->data['body']))
-                                                <p class="text-xs text-gray-500 mt-1">{{ $n->data['body'] }}</p>
-                                            @endif
-                                            <span class="text-[10px] text-gray-400">{{ $n->created_at->diffForHumans() }}</span>
-                                        </a>
-                                        @if(is_null($n->read_at))
-                                            <form method="POST" action="{{ route('notifications.markOneRead', $n->id) }}" class="mt-1">
-                                                @csrf
-                                                <button type="submit" class="text-xs text-gray-500 hover:text-gray-700"
-                                                        @click="setTimeout(()=>refresh(),400)">Mark as read</button>
-                                            </form>
+                                        @php $data = $notification->data; @endphp
+
+                                        @if($notification->type === 'App\\Notifications\\ReportNotification')
+                                            <a href="{{ route('reports.show', $data['report_id'] ?? '') }}" class="block">
+                                                <p class="text-sm font-semibold text-gray-900">
+                                                    New Report: {{ $data['subject'] ?? 'View details' }}
+                                                </p>
+                                                <p class="text-xs text-gray-500 mt-1">
+                                                    {{ \Carbon\Carbon::parse($notification->created_at)->format('d-m-Y H:i') }}
+                                                </p>
+                                            </a>
+                                        @else
+                                            <div class="block">
+                                                <p class="text-sm font-semibold text-gray-900">
+                                                    {{ $data['title'] ?? 'Notification' }}
+                                                </p>
+                                                <p class="text-xs text-gray-500 mt-1">
+                                                    {{ $data['message'] ?? '' }}
+                                                </p>
+                                            </div>
                                         @endif
                                     </li>
                                 @empty
-                                    <li class="p-4 text-sm text-gray-500">No notifications yet.</li>
+                                    <li class="p-3 text-center text-gray-500 text-sm">
+                                        No notifications yet.
+                                    </li>
                                 @endforelse
                             </ul>
                         </div>
                     </div>
                     {{-- === /Notifications === --}}
 
-                    {{-- Logout (red) --}}
+                    {{-- Logout --}}
                     <form method="POST" action="{{ route('logout') }}" class="ml-2">
                         @csrf
                         <button type="submit"
@@ -197,7 +213,7 @@
                     History
                 </a>
 
-                {{-- Simple notifications list --}}
+                {{-- Notifications (mobile) --}}
                 <div class="mt-2 rounded-lg bg-blue-700/40 p-2">
                     <div class="flex items-center justify-between px-1 py-1">
                         <span class="text-sm font-semibold">Notifications</span>
@@ -206,22 +222,36 @@
                             <button class="text-xs underline" type="submit">Mark all read</button>
                         </form>
                     </div>
-                    @php $latestMobile = auth()->user()->notifications()->latest()->take(5)->get(); @endphp
+
+                    {{-- Reports shortcut --}}
                     <ul class="divide-y divide-white/10">
-                        @forelse($latestMobile as $n)
+                        <li class="px-2 py-2">
+                            <a href="{{ route('reports.index') }}" class="block">
+                                <p class="text-sm font-semibold">Reports</p>
+                                <p class="text-xs opacity-80">Click to view all latest reports</p>
+                            </a>
+                        </li>
+                    </ul>
+
+                    {{-- Dynamic notifications --}}
+                    <ul class="divide-y divide-white/10">
+                        @forelse(auth()->user()->notifications()->latest()->take(10)->get() as $notification)
+                            @php $data = $notification->data; @endphp
                             <li class="px-2 py-2">
-                                <a href="{{ $n->data['url'] ?? '#' }}" class="block">
-                                    <p class="text-sm {{ $n->read_at ? 'opacity-70' : 'font-medium' }}">
-                                        {{ $n->data['title'] ?? 'Notification' }}
-                                    </p>
-                                    @if(!empty($n->data['body']))
-                                        <p class="text-xs opacity-80">{{ $n->data['body'] }}</p>
-                                    @endif
-                                    <span class="text-[10px] opacity-70">{{ $n->created_at->diffForHumans() }}</span>
-                                </a>
+                                @if($notification->type === 'App\\Notifications\\ReportNotification')
+                                    <a href="{{ route('reports.show', $data['report_id'] ?? '') }}" class="block">
+                                        <p class="text-sm font-semibold">New Report: {{ $data['subject'] ?? 'View details' }}</p>
+                                        <p class="text-xs opacity-80">{{ \Carbon\Carbon::parse($notification->created_at)->format('d-m-Y H:i') }}</p>
+                                    </a>
+                                @else
+                                    <div class="block">
+                                        <p class="text-sm font-semibold">{{ $data['title'] ?? 'Notification' }}</p>
+                                        <p class="text-xs opacity-80">{{ $data['message'] ?? '' }}</p>
+                                    </div>
+                                @endif
                             </li>
                         @empty
-                            <li class="px-2 py-2 text-sm opacity-80">No notifications yet.</li>
+                            <li class="px-2 py-2 text-center text-sm opacity-80">No notifications yet.</li>
                         @endforelse
                     </ul>
                 </div>
@@ -242,4 +272,3 @@
         </div>
     </div>
 </nav>
-

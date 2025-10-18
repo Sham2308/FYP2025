@@ -9,12 +9,6 @@
         {{-- Filters --}}
         <form method="GET" class="bg-white p-4 rounded shadow grid grid-cols-1 md:grid-cols-4 gap-3">
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Search subject/message" class="border rounded p-2">
-            <select name="status" class="border rounded p-2">
-                <option value="">All Status</option>
-                @foreach (['open','in_progress','closed'] as $s)
-                    <option value="{{ $s }}" @selected(request('status')===$s)>{{ ucfirst(str_replace('_',' ',$s)) }}</option>
-                @endforeach
-            </select>
             <select name="priority" class="border rounded p-2">
                 <option value="">All Priority</option>
                 @foreach (['low','medium','high'] as $p)
@@ -47,8 +41,7 @@
                             <td class="p-3">{{ $r->subject }}</td>
                             <td class="p-3">{{ data_get($r, 'user.name') ?? $r->guest_name ?? 'Guest' }}</td>
                             <td class="p-3 capitalize">{{ $r->priority }}</td>
-                            <td class="p-3 capitalize">{{ str_replace('_',' ',$r->status) }}</td>
-                            <td class="p-3">{{ $r->created_at->format('Y-m-d H:i') }}</td>
+                            <td class="p-3">{{ $r->created_at->format('d-m-Y H:i') }}</td>
                             <td class="p-3">
                                 <a href="{{ route('admin.reports.show', $r) }}" class="text-indigo-600 hover:underline">View</a>
                             </td>

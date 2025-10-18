@@ -147,6 +147,11 @@ Route::middleware(['auth', 'role:admin'])
             ->whereNumber('report')->whereNumber('index')->name('attachment');
     });
 
+// Internal reports list (admin + technical) for the bell link
+Route::middleware(['auth','role:admin,technical'])
+    ->get('/reports', [ReportController::class, 'adminIndex'])
+    ->name('reports.index');
+
 // Breeze / Fortify routes
 require __DIR__.'/auth.php';
 
