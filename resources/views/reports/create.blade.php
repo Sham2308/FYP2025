@@ -7,19 +7,19 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
         :root{
-            --brand:#2563eb;     /* header blue (changed from green) */
-            --bg:#f4f7f6;        /* page bg */
-            --card:#ffffff;      /* card bg */
-            --text:#0f172a;      /* dark text */
-            --muted:#64748b;     /* muted text */
-            --ring:#94a3b8;      /* input border */
+            --brand:#2563eb;
+            --bg:#f4f7f6;
+            --card:#ffffff;
+            --text:#0f172a;
+            --muted:#64748b;
+            --ring:#94a3b8;
             --ring-focus:#2563eb;
         }
         *{box-sizing:border-box}
         body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
         header{background:var(--brand);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:14px 24px}
-        header .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.3px} /* made flex to hold logo + text */
-        header .brand img{height:24px;width:auto;display:block} /* logo beside text */
+        header .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.3px}
+        header .brand img{height:24px;width:auto;display:block}
         header nav a{color:#fff;text-decoration:none;margin-left:18px;font-weight:600;opacity:.95}
         header nav a:hover{opacity:1;text-decoration:underline}
         .wrap{max-width:820px;margin:36px auto;padding:0 16px}
@@ -27,7 +27,6 @@
         .card{background:var(--card);border:1px solid #e5e7eb;border-radius:14px;padding:18px 18px 14px;box-shadow:0 8px 24px rgba(0,0,0,.06)}
         .card h2{font-size:18px;margin:0 0 4px}
         .card p.lead{margin:0 0 14px;color:var(--muted);font-size:14px}
-        .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
         label{display:block;font-size:13px;font-weight:600;margin:12px 0 6px}
         input[type=text],input[type=email],select,textarea{
             width:100%;padding:10px 12px;border:1px solid var(--ring);border-radius:10px;font-size:14px;background:#fff;outline:none
@@ -57,8 +56,6 @@
     <nav>
         <a href="/">Home</a>
         <a href="/borrow">Borrow</a>
-        <a href="{{ route('nfc.inventory') }}">Inventory</a>
-        <a href="{{ route('history.index') }}">History</a>
         <a href="{{ route('reports.create') }}">Report</a>
     </nav>
 </header>
@@ -84,8 +81,7 @@
         <form method="POST" action="{{ route('reports.store') }}" enctype="multipart/form-data">
             @csrf
 
-            {{-- Guest-only (since you allow public reports) --}}
-            @guest
+            {{-- Public: always ask for name & email --}}
             <div class="two-col">
                 <div>
                     <label for="guest_name">Your Name</label>
@@ -96,7 +92,6 @@
                     <input id="guest_email" type="email" name="guest_email" value="{{ old('guest_email') }}" required>
                 </div>
             </div>
-            @endguest
 
             <label for="subject">Issue Title</label>
             <input id="subject" type="text" name="subject" placeholder="e.g., Wrong status shown for item"
@@ -114,9 +109,9 @@
                 <div>
                     <label for="category">Where did you find this issue?</label>
                     <input id="category" type="text" name="category"
-                           placeholder="e.g., Borrow page, Inventory, History"
+                           placeholder="e.g., Borrow page"
                            value="{{ old('category') }}">
-                    <small class="helper">Examples: Borrow page, Inventory table, History search…</small>
+                    <small class="helper">Examples: Borrow page, search…</small>
                 </div>
             </div>
 

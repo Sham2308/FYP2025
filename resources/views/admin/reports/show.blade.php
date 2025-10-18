@@ -22,12 +22,11 @@
                     <p class="text-sm text-gray-600">
                         From: <strong>{{ $fromName }}</strong>
                         @if($fromEmail) ({{ $fromEmail }}) @endif
-                        • {{ $report->created_at->format('Y-m-d H:i') }}
+                        • {{ $report->created_at->format('d-m-Y H:i') }}
                     </p>
                 </div>
                 <div class="text-right space-y-1">
                     <span class="inline-block text-xs px-2 py-1 rounded bg-gray-100">Priority: {{ ucfirst($report->priority) }}</span>
-                    <span class="inline-block text-xs px-2 py-1 rounded bg-gray-100">Status: {{ ucfirst(str_replace('_',' ',$report->status)) }}</span>
                 </div>
             </div>
 
@@ -58,20 +57,6 @@
             @endif
         </div>
 
-        {{-- Update status --}}
-        <div class="bg-white p-6 rounded shadow">
-            <form method="POST" action="{{ route('admin.reports.updateStatus', $report) }}" class="flex items-end gap-3">
-                @csrf @method('PATCH')
-                <div>
-                    <label class="block text-sm font-medium">Change status</label>
-                    <select name="status" class="mt-1 border rounded p-2">
-                        @foreach (['open','in_progress','closed'] as $s)
-                            <option value="{{ $s }}" @selected($report->status===$s)>{{ ucfirst(str_replace('_',' ',$s)) }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <button class="px-4 py-2 bg-gray-800 text-white rounded">Update</button>
-            </form>
-        </div>
+        
     </div>
 </x-app-layout>
