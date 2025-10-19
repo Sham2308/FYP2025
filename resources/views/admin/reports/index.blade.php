@@ -47,8 +47,7 @@
                             <td class="p-3">{{ $r->subject }}</td>
                             <td class="p-3">{{ data_get($r, 'user.name') ?? $r->guest_name ?? 'Guest' }}</td>
                             <td class="p-3 capitalize">{{ $r->priority }}</td>
-                            <td class="p-3 capitalize">{{ str_replace('_',' ',$r->status) }}</td>
-                            <td class="p-3">{{ $r->created_at->format('Y-m-d H:i') }}</td>
+                            <td class="p-3">{{ $r->created_at->format('d-m-Y H:i') }}</td>
                             <td class="p-3">
                                 <a href="{{ route('admin.reports.show', $r) }}" class="text-indigo-600 hover:underline">View</a>
                             </td>

@@ -14,15 +14,15 @@ class ItemImportController extends Controller
      */
     public function importFromGoogle(Request $request)
     {
-        Log::info('🚀 [Import] Import route triggered', ['csv_url' => env('GOOGLE_SHEET_CSV_URL')]);
 
-        $csvUrl = env('GOOGLE_SHEET_CSV_URL');
-        if (!$csvUrl) {
-            $message = '⚠️ GOOGLE_SHEET_CSV_URL is not set in .env file.';
+        $csvUrl = config('services.google.sheet_csv_url');
+        if (empty($csvUrl)) {
+            $message = '⚠️ GOOGLE_SHEET_CSV_URL is not set or loaded from configuration.';
             return $request->ajax()
                 ? response()->json(['success' => false, 'message' => $message], 400)
                 : back()->with('error', $message);
         }
+
 
         try {
             $res = Http::timeout(20)->get($csvUrl);

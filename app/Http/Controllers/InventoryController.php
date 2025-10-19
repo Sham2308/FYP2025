@@ -29,7 +29,7 @@ class InventoryController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->whereRaw('LOWER(name) LIKE ?', ['%' . strtolower($search) . '%'])
                   ->orWhereRaw('LOWER(asset_id) LIKE ?', ['%' . strtolower($search) . '%'])
-                  ->orWhereRaw('LOWER(uid) LIKE ?', ['%' . strtolower($search) . '%']);
+                  ->orWhereRaw('LOWER(item_id) LIKE ?', ['%' . strtolower($search) . '%']);
             });
         }
 
@@ -63,7 +63,7 @@ class InventoryController extends Controller
         $item = Item::where('asset_id', $asset_id)->firstOrFail();
 
         $data = $request->validate([
-            'uid'           => ['nullable', 'string', 'max:191'],
+            'item_id' => ['nullable', 'string', 'max:191'],
             'asset_id'      => ['required', 'string', 'max:191'],
             'name'          => ['required', 'string', 'max:191'],
             'detail'        => ['nullable', 'string'],
@@ -101,7 +101,7 @@ class InventoryController extends Controller
         }
 
         // Persist changes
-        $item->uid           = $data['uid']           ?? null;
+        $item->item_id = $data['item_id'] ?? null;
         $item->asset_id      = $newAssetId;
         $item->name          = $data['name'];
         $item->detail        = $data['detail']        ?? null;
@@ -113,31 +113,31 @@ class InventoryController extends Controller
         $item->remarks       = $data['remarks']       ?? null;
         $item->save();
 
-        // Try to reflect the change in Google Sheets if your service supports it
         try {
-            if (method_exists($sheetService, 'updateRowByAssetId')) {
-                $sheetStatus = $this->titleCaseStatus($item->status);
-                $sheetDate   = '';
-                if (!empty($item->purchase_date)) {
-                    try { $sheetDate = Carbon::parse($item->purchase_date)->format('d/m/Y'); } catch (\Throwable $e) { $sheetDate = ''; }
-                }
+            if (method_exists($sheetService, 'updateRowByItemOrAsset')) {
 
-                $sheetService->updateRowByAssetId($asset_id, [
-                    $item->uid ?? '',
-                    $item->asset_id ?? '',
-                    $item->name ?? '',
-                    $item->detail ?? '',
-                    $item->accessories ?? '',
-                    $item->type_id ?? '',
-                    $item->serial_no ?? '',
-                    $sheetStatus,
-                    $sheetDate,
-                    $item->remarks ?? '',
-                ]);
+            $data = [
+                'item_id'       => $item->item_id ?? '',
+                'asset_id'      => $item->asset_id ?? '',
+                'name'          => $item->name ?? '',
+                'detail'        => $item->detail ?? '',
+                'accessories'   => $item->accessories ?? '',
+                'type_id'       => $item->type_id ?? '',
+                'serial_no'     => $item->serial_no ?? '',
+                'status'        => $this->titleCaseStatus($item->status ?? ''),
+                'purchase_date' => !empty($item->purchase_date)
+                                    ? \Carbon\Carbon::parse($item->purchase_date)->format('d/m/Y')
+                                    : '',
+                'remarks'       => $item->remarks ?? '',
+            ];
+
+            // ✅ Update existing row (no new row creation)
+            $sheetService->updateRowByItemOrAsset($data);
             }
         } catch (\Throwable $e) {
-            Log::warning('Sheet update skipped/failed: '.$e->getMessage());
+            \Log::warning('❌ Google Sheet update failed: '.$e->getMessage());
         }
+
 
         // 🔔 Notify admins & technicals about the update
         try {
@@ -160,7 +160,7 @@ class InventoryController extends Controller
     public function store(Request $request, GoogleSheetService $sheetService)
     {
         $data = $request->validate([
-            'uid'           => ['nullable', 'string', 'max:191'],
+            'item_id'           => ['nullable', 'string', 'max:191'],
             'asset_id'      => ['required', 'string', 'max:191'],
             'name'          => ['required', 'string', 'max:191'], // DB is NOT NULL
             'detail'        => ['nullable', 'string'],
@@ -187,7 +187,7 @@ class InventoryController extends Controller
         $item = Item::updateOrCreate(
             ['asset_id' => $data['asset_id']],
             [
-                'uid'           => $data['uid'] ?? null,
+                'item_id'       => $data['item_id'] ?? null, // ✅ changed from uid
                 'name'          => $data['name'],
                 'detail'        => $data['detail'] ?? null,
                 'accessories'   => $data['accessories'] ?? null,
@@ -210,7 +210,7 @@ class InventoryController extends Controller
         $sheetStatus = $this->titleCaseStatus($item->status);
 
         $sheetService->appendRow([
-            $item->uid ?? '',
+            $item->item_id ?? '',   // ✅ instead of uid
             $item->asset_id ?? '',
             $item->name ?? '',
             $item->detail ?? '',
@@ -236,86 +236,100 @@ class InventoryController extends Controller
         return redirect()->route('nfc.inventory')->with('success', 'Item saved successfully.');
     }
 
-    /**
-     * Import Items from Google Sheets (published as CSV).
-     */
     public function importFromGoogleSheet()
-    {
-        $url = config('services.google.sheet_csv_url');
+{
+    $url = config('services.google.sheet_csv_url');
 
-        if (empty($url)) {
-            return back()->with('error', 'Google Sheet CSV URL is not configured.');
+    if (empty($url)) {
+        return back()->with('error', 'Google Sheet CSV URL is not configured.');
+    }
+
+    try {
+        $response = Http::timeout(20)->get($url);
+    } catch (\Throwable $e) {
+        return back()->with('error', 'Failed to reach Google Sheets: ' . $e->getMessage());
+    }
+
+    if ($response->failed()) {
+        return back()->with('error', 'Failed to fetch Google Sheet (HTTP ' . $response->status() . ').');
+    }
+
+    $csvRaw = $response->body();
+    $rows = array_map('str_getcsv', preg_split("/\r\n|\n|\r/", $csvRaw));
+
+    if (count($rows) < 2) {
+        return back()->with('error', 'CSV appears to have no data rows.');
+    }
+
+    $headers = array_map(fn($h) => strtolower(trim((string)$h)), array_shift($rows));
+
+    $mapping = [
+        'item_id'       => 'item_id',
+        'asset_id'      => 'asset_id',
+        'name'          => 'name',
+        'detail'        => 'detail',
+        'accessories'   => 'accessories',
+        'type_id'       => 'type_id',
+        'serial_no'     => 'serial_no',
+        'status'        => 'status',
+        'purchase_date' => 'purchase_date',
+        'remarks'       => 'remarks',
+    ];
+
+    $updated = 0;
+    $created = 0;
+
+    foreach ($rows as $row) {
+        if (!is_array($row) || count(array_filter($row)) === 0) continue;
+        if (count($row) < count($headers)) $row = array_pad($row, count($headers), null);
+
+        $rowData = array_combine($headers, $row);
+        $data = [];
+
+        foreach ($mapping as $sheetCol => $dbField) {
+            $data[$dbField] = $rowData[$sheetCol] ?? null;
         }
 
-        try {
-            $response = Http::timeout(20)->get($url);
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Failed to reach Google Sheets: ' . $e->getMessage());
-        }
+        $data['status'] = $this->normalizeStatus($data['status'] ?? null) ?? 'available';
 
-        if ($response->failed()) {
-            return back()->with('error', 'Failed to fetch Google Sheet (HTTP ' . $response->status() . ').');
-        }
-
-        $csvRaw = $response->body();
-        $rows = array_map('str_getcsv', preg_split("/\r\n|\n|\r/", $csvRaw));
-        if (count($rows) < 2) {
-            return back()->with('error', 'CSV appears to have no data rows.');
-        }
-
-        $headers = array_map(fn($h) => strtolower(trim((string)$h)), array_shift($rows));
-
-        $mapping = [
-            'uid'           => 'uid',
-            'asset_id'      => 'asset_id',
-            'name'          => 'name',
-            'detail'        => 'detail',
-            'accessories'   => 'accessories',
-            'type_id'       => 'type_id',
-            'serial_no'     => 'serial_no',
-            'status'        => 'status',
-            'purchase_date' => 'purchase_date',
-            'remarks'       => 'remarks',
-        ];
-
-        Item::truncate();
-
-        $inserted = 0;
-        foreach ($rows as $row) {
-            if (!is_array($row) || count(array_filter($row)) === 0) continue;
-            if (count($row) < count($headers)) $row = array_pad($row, count($headers), null);
-
-            $rowData = array_combine($headers, $row);
-
-            $data = [];
-            foreach ($mapping as $sheetCol => $dbField) {
-                $data[$dbField] = $rowData[$sheetCol] ?? null;
-            }
-
-            $data['status'] = $this->normalizeStatus($data['status'] ?? null) ?? 'available';
-
-            if (!empty($data['purchase_date'])) {
+        // 🗓 Normalize date format
+        if (!empty($data['purchase_date'])) {
+            try {
+                $dt = \Carbon\Carbon::createFromFormat('d/m/Y', trim($data['purchase_date']));
+                $data['purchase_date'] = $dt->format('Y-m-d');
+            } catch (\Throwable $e) {
                 try {
-                    $dt = Carbon::createFromFormat('d/m/Y', trim($data['purchase_date']));
-                    $data['purchase_date'] = $dt->format('Y-m-d');
-                } catch (\Throwable $e) {
-                    try {
-                        $data['purchase_date'] = Carbon::parse($data['purchase_date'])->format('Y-m-d');
-                    } catch (\Throwable $e2) {
-                        $data['purchase_date'] = null;
-                    }
+                    $data['purchase_date'] = \Carbon\Carbon::parse($data['purchase_date'])->format('Y-m-d');
+                } catch (\Throwable $e2) {
+                    $data['purchase_date'] = null;
                 }
             }
-
-            if (empty($data['asset_id'])) continue;
-
-            Item::create($data);
-            $inserted++;
         }
 
-        return redirect()->route('nfc.inventory')
-            ->with('success', "Google Sheet import successful. Replaced table with {$inserted} items.");
+        // 🧠 Identify existing record by Item ID or Asset ID
+        $existing = null;
+        if (!empty($data['item_id'])) {
+            $existing = Item::where('item_id', $data['item_id'])->first();
+        } elseif (!empty($data['asset_id'])) {
+            $existing = Item::where('asset_id', $data['asset_id'])->first();
+        }
+
+        // 🧩 Update or Create logic
+        if ($existing) {
+            $existing->update($data);
+            $updated++;
+        } else {
+            if (!empty($data['asset_id'])) {
+                Item::create($data);
+                $created++;
+            }
+        }
     }
+
+    return redirect()->route('nfc.inventory')
+        ->with('success', "✅ Import complete: {$updated} updated, {$created} new items added.");
+}
+
 
     /**
      * Delete a single item (DB + Google Sheets).

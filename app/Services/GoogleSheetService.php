@@ -91,7 +91,7 @@ class GoogleSheetService
         return $this->service->spreadsheets_values->get($this->spreadsheetId, $range);
     }
 
-    public function appendRow(array $values, string $range = 'BorrowDetails!A:Z')
+    public function appendRow(array $values, string $range = 'Items!A:J')
     {
         $this->assertReady();
 
@@ -365,6 +365,74 @@ public function updateItemStatus($assetIdOrItemId, $newStatus)
         return false;
     }
 }
+
+public function updateRowByItemOrAsset(array $itemData): bool
+{
+    if (!$this->service || !$this->spreadsheetId) {
+        \Log::warning('Google Sheets not initialized.');
+        return false;
+    }
+
+    try {
+        $range = 'Items!A:J'; // adjust based on your sheet layout
+        $response = $this->service->spreadsheets_values->get($this->spreadsheetId, $range);
+        $rows = $response->getValues();
+
+        $rowIndex = null;
+        $itemId = trim((string)($itemData['item_id'] ?? ''));
+        $assetId = trim((string)($itemData['asset_id'] ?? ''));
+
+        // 🔍 Look for Item ID first (Column A), then Asset ID (Column B)
+        foreach ($rows as $i => $row) {
+            $sheetItemId = isset($row[0]) ? trim($row[0]) : '';
+            $sheetAssetId = isset($row[1]) ? trim($row[1]) : '';
+
+            if ($itemId && $sheetItemId === $itemId) {
+                $rowIndex = $i + 1;
+                break;
+            } elseif (!$rowIndex && $assetId && $sheetAssetId === $assetId) {
+                $rowIndex = $i + 1;
+            }
+        }
+
+        if ($rowIndex) {
+            // Prepare the updated row (A–J)
+            $values = [
+                $itemData['item_id'] ?? '',
+                $itemData['asset_id'] ?? '',
+                $itemData['name'] ?? '',
+                $itemData['detail'] ?? '',
+                $itemData['accessories'] ?? '',
+                $itemData['type_id'] ?? '',
+                $itemData['serial_no'] ?? '',
+                $itemData['status'] ?? '',
+                $itemData['purchase_date'] ?? '',
+                $itemData['remarks'] ?? '',
+            ];
+
+            $updateRange = "Items!A{$rowIndex}:J{$rowIndex}";
+            $body = new \Google\Service\Sheets\ValueRange(['values' => [$values]]);
+
+            $this->service->spreadsheets_values->update(
+                $this->spreadsheetId,
+                $updateRange,
+                $body,
+                ['valueInputOption' => 'USER_ENTERED']
+            );
+
+            \Log::info("✅ Updated Google Sheet row {$rowIndex} for {$itemId}");
+            return true;
+        }
+
+        \Log::warning("⚠️ Item not found in sheet for ID {$itemId} or Asset {$assetId}");
+        return false;
+
+    } catch (\Throwable $e) {
+        \Log::error('Google Sheet updateRowByItemOrAsset failed: '.$e->getMessage());
+        return false;
+    }
+}
+
 
 
 }

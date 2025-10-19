@@ -25,21 +25,17 @@
             <!-- Links -->
             <div class="hidden sm:flex items-center space-x-2">
                 @auth
-                    {{-- Home --}}
-                    <a href="{{ $homeUrl }}"
-                       class="px-4 py-2 rounded-lg {{ url()->current() === $homeUrl ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
-                        Home
-                    </a>
 
                     {{-- Inventory (admins) --}}
                     @if(auth()->user()->role === 'admin')
                         <a href="{{ route('nfc.inventory') }}"
-                           class="px-4 py-2 rounded-lg {{ request()->routeIs('nfc.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
+                            class="px-4 py-2 rounded-lg {{ request()->routeIs('nfc.inventory') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
                             Inventory
                         </a>
+
                     @endif
 
-                    {{-- Technical (technicals) --}}
+                    {{-- Technical --}}
                     @if(auth()->user()->role === 'technical')
                         <a href="{{ route('technical.dashboard') }}"
                            class="px-4 py-2 rounded-lg {{ request()->routeIs('technical.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
@@ -47,7 +43,7 @@
                         </a>
                     @endif
 
-                    {{-- Borrow (everyone except technical) --}}
+                    {{-- Borrow --}}
                     @if(auth()->user()->role !== 'technical')
                         <a href="{{ route('borrow.index') }}"
                            class="px-4 py-2 rounded-lg {{ request()->routeIs('borrow.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
@@ -55,11 +51,19 @@
                         </a>
                     @endif
 
-                    {{-- History (adjust the route name if yours is different) --}}
+                    {{-- History --}}
                     <a href="{{ route('history.index') }}"
                        class="px-4 py-2 rounded-lg {{ request()->routeIs('history.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
                         History
                     </a>
+
+                    @if(auth()->user()->role === 'admin')
+                        <a href="{{ route('analytics.index') }}"
+                            class="px-4 py-2 rounded-lg {{ request()->routeIs('analytics.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
+                            Analytics
+                        </a>
+                    @endif
+
 
                     {{-- === Notifications === --}}
                     <div
@@ -173,7 +177,7 @@
 
                 @if(auth()->user()->role === 'admin')
                     <a href="{{ route('nfc.inventory') }}"
-                       class="block px-3 py-2 rounded {{ request()->routeIs('nfc.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
+                       class="px-4 py-2 rounded-lg {{ request()->routeIs('nfc.inventory') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
                         Inventory
                     </a>
                 @endif
@@ -196,6 +200,14 @@
                    class="block px-3 py-2 rounded {{ request()->routeIs('history.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
                     History
                 </a>
+
+                {{-- Analytics (for Admin only) --}}
+                @if(auth()->user()->role === 'admin')
+                    <a href="{{ route('analytics.index') }}"
+                        class="block px-3 py-2 rounded {{ request()->routeIs('analytics.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
+                        Analytics
+                    </a>
+                @endif
 
                 {{-- Simple notifications list --}}
                 <div class="mt-2 rounded-lg bg-blue-700/40 p-2">

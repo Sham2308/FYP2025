@@ -1,4 +1,5 @@
 <x-app-layout>
+    <link rel="icon" type="image/png" href="{{ asset('images/main-logo.png') }}">
     <style>
         .tech-page * { box-sizing: border-box; }
         .tech-page h2 { text-align:center; margin:24px 0 6px; }
@@ -57,7 +58,7 @@
             .tech-page h3 { font-size: 18px; text-align:center; margin-top: 16px; }
         }
     </style>
-
+    
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 leading-tight text-center md:text-left">
             NFC Inventory Dashboard
@@ -87,7 +88,7 @@
                         @csrf
                         <div class="form-row">
                             <div style="flex:1; display:flex; gap:6px;">
-                                <input type="text" id="uid" name="uid" placeholder="UID" required readonly>
+                                <input type="text" id="item_id" name="item_id" placeholder="UID" required readonly>
                                 <button type="button" id="scan-btn" class="btn btn-green">Scan Sticker</button>
                             </div>
                             <input type="text" name="asset_id" placeholder="Asset ID" required>
@@ -247,25 +248,42 @@
         if (closeBtn) closeBtn.onclick = () => { modal.style.display = "none"; };
         window.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; };
 
-        // Scan (uses your existing API: /api/start-scan + /api/get-uid)
-        const scanBtn = document.getElementById("scan-btn");
+        // ✅ NFC Scan (reads from /api/read-uid → fills UID)
+        const scanBtn = document.getElementById('scan-btn');
         if (scanBtn) {
-            scanBtn.addEventListener("click", async () => {
-                try {
-                    await fetch("/api/start-scan", { method: "POST" });
-                    alert("Please tap your NFC card...");
-                    let uid = null;
-                    for (let i = 0; i < 15; i++) {
-                        const response = await fetch("/api/get-uid");
-                        const data = await response.json();
-                        if (data.uid) { uid = data.uid; break; }
-                        await new Promise(r => setTimeout(r, 1000));
-                    }
-                    if (uid) document.getElementById("uid").value = uid;
-                    else alert("No UID received. Try again.");
-                } catch (err) { alert("Error: " + err); }
+    scanBtn.addEventListener('click', async () => {
+        try {
+            await fetch('/api/request-scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'sticker' })
             });
+            alert('📡 Please tap the item’s NFC sticker...');
+
+            let itemId = null;
+            for (let i = 0; i < 20; i++) {
+                await new Promise(r => setTimeout(r, 1000));
+                const res = await fetch('/api/read-uid', { cache: 'no-store' });
+                const data = await res.json();
+                if (data.uid) {
+                    itemId = data.uid.trim();
+                    break;
+                }
+            }
+
+            if (itemId) {
+                document.getElementById('item_id').value = itemId;
+                alert(`✅ Item Detected: ${itemId}`);
+            } else {
+                alert('⚠️ No sticker detected. Try again.');
+            }
+        } catch (err) {
+            alert('❌ Error scanning sticker: ' + err.message);
         }
+    });
+}
+
+
 
         // Dropdowns
         document.addEventListener('click', function (e) {

@@ -82,7 +82,7 @@
         <form method="POST" action="{{ route('reports.store') }}" enctype="multipart/form-data">
             @csrf
 
-            {{-- Guest-only (since you allow public reports) --}}
+            {{-- Public: always ask for name & email --}}
             @guest
             <div class="two-col">
                 <div>
@@ -112,9 +112,9 @@
                 <div>
                     <label for="category">Where did you find this issue?</label>
                     <input id="category" type="text" name="category"
-                           placeholder="e.g., Borrow page, Inventory, History"
+                           placeholder="e.g., Borrow page"
                            value="{{ old('category') }}">
-                    <small class="helper">Examples: Borrow page, Inventory table, History search…</small>
+                    <small class="helper">Examples: Borrow page, search…</small>
                 </div>
             </div>
 

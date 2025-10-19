@@ -1,13 +1,24 @@
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Borrow Item</title>
+        <title>TapNBorrow</title>
         <link rel="icon" type="image/png" href="{{ asset('images/main-logo.png') }}">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <style>
-            body{margin:0;font-family:system-ui,Arial,sans-serif;background:#fff;color:#111;font-size:14px;}
+            :root{
+            --brand:#2563eb;     /* header blue (changed from green) */
+            --bg:#f4f7f6;        /* page bg */
+            --card:#ffffff;      /* card bg */
+            --text:#0f172a;      /* dark text */
+            --muted:#64748b;     /* muted text */
+            --ring:#94a3b8;      /* input border */
+            --ring-focus:#2563eb;
+            }
+            body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
             header{display:flex;justify-content:space-between;align-items:center;padding:14px 30px;background:#2563eb;color:#fff;}
-            header .logo{font-size:20px;font-weight:700;}
+            header{background:var(--brand);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:14px 24px}
+            header .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.3px} /* made flex to hold logo + text */
+            header .brand img{height:24px;width:auto;display:block} /* logo beside text */
             header nav a{color:#fff;text-decoration:none;margin-left:20px;font-weight:600;}
             header nav a:hover{text-decoration:underline;}
             h2{text-align:left;margin:24px 0 8px;font-size:28px;padding-left:24px;font-weight:700;}
@@ -94,11 +105,21 @@
             0 0 0 2px rgba(255,255,255,.15),
             0 0 0 4px rgba(99,102,241,.45);
         }
+
+        /* adjust email */
+        .email-field {
+        flex: none !important;  /* stops auto-stretching */
+        width: 250px;           /* adjust to your liking */
+        }
+
         </style>
     </head>
     <body>
     <header>
-        <div class="logo">TapNBorrow</div>
+        <div class="brand">
+            <img src="{{ asset('images/icon-logo.png') }}" alt="TapNBorrow logo">
+            <span>TapNBorrow</span>
+        </div>
         <nav>
             <a href="/">Home</a>
             <a href="/borrow">Borrow</a>
@@ -202,7 +223,7 @@
                     <button type="button" class="btn btn-info" id="addItemBtn" style="margin-top:6px;">+ Add Another Item</button>
                     <h3></h3>
                     <div class="row">
-                        <input name="email" type="email" placeholder="Enter Borrower Email" required>
+                        <input class="email-field" name="email" type="email" placeholder="Enter Email" required>
                     </div>
 
                     <div class="row" style="margin-top:10px;">
@@ -406,29 +427,40 @@
     console.log("✅ Borrow form detected");
 
     borrowForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        console.log("📤 Submitting to:", borrowForm.action);
+    e.preventDefault();
 
-        const formData = new FormData(borrowForm);
+    const btn = borrowForm.querySelector('.btn-success');
+    btn.disabled = true;
+    btn.textContent = "Saving...";
 
-        try {
+    const formData = new FormData(borrowForm);
+
+    try {
         const res = await fetch(borrowForm.action, {
             method: 'POST',
             body: formData,
             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
         });
 
-        console.log("✅ Response:", res.status);
         if (!res.ok) throw new Error("Server returned " + res.status);
 
+        // ✅ brief success alert
         alert("✅ Borrow recorded successfully!");
-        borrowForm.reset();
 
-        } catch (err) {
+        // 🌀 small delay for user to read alert, then refresh
+        setTimeout(() => {
+            window.location.reload();
+        }, 400);
+
+    } catch (err) {
         console.error("❌ Borrow submit failed:", err);
         alert("❌ " + err.message);
-        }
-    });
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Save Borrow";
+    }
+});
+
     });
 
     document.getElementById('returnScanBtn').addEventListener('click', async () => {

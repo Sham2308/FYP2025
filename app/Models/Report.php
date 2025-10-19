@@ -10,7 +10,15 @@ class Report extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id','subject','category','priority','item_id','message','attachments','status',
+        'guest_name',      // added for public user name
+        'guest_email',     // added for public user email
+        'subject',
+        'category',
+        'priority',
+        'item_asset_id',   // optional: depends on your database column
+        'message',
+        'attachments',
+        'status',
     ];
 
     protected $casts = [
@@ -18,6 +26,13 @@ class Report extends Model
     ];
 
     // relationships
-    public function user() { return $this->belongsTo(User::class); }
-    public function item() { return $this->belongsTo(\App\Models\Item::class, 'item_id'); }
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function item()
+    {
+        return $this->belongsTo(\App\Models\Item::class, 'item_id');
+    }
 }

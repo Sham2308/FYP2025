@@ -14,6 +14,8 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ItemStatusController; // ← NEW (for mark-available)
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\AnalyticsController;
+
 
 // Notifications
 use App\Notifications\GenericDatabaseNotification;
@@ -51,8 +53,6 @@ Route::post('/borrow/return/{uid}', [BorrowController::class, 'returnByUid'])->n
 // Delete borrow record from Google Sheets (by Item ID)
 Route::delete('/borrow/delete/{itemId}', [BorrowController::class, 'delete'])->name('borrow.delete');
 Route::delete('/borrow/delete/{rowIndex}', [BorrowController::class, 'delete'])->name('borrow.delete');
-
-
 
 // Public fetch endpoints
 Route::get('/borrow/fetch/{uid}', [BorrowController::class, 'fetchItem'])->name('borrow.fetch');
@@ -179,6 +179,18 @@ Route::middleware(['auth', 'role:admin'])
         Route::get('/{report}/attachments/{index}', [ReportController::class,'downloadAttachment'])
             ->whereNumber('report')->whereNumber('index')->name('attachment');
     });
+
+// Internal reports list (admin + technical) for the bell link
+Route::middleware(['auth','role:admin,technical'])
+    ->get('/reports', [ReportController::class, 'adminIndex'])
+    ->name('reports.index');
+
+Route::middleware(['auth', 'role:admin,technical'])->group(function () {
+    // Analytics Page (Admin + Technical)
+    Route::get('/analytics', [App\Http\Controllers\AnalyticsController::class, 'index'])
+        ->name('analytics.index');
+});
+
 
 // Breeze / Fortify authentication routes
 require __DIR__.'/auth.php';
