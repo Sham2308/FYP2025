@@ -43,13 +43,14 @@
                         </a>
                     @endif
 
-                    {{-- Borrow --}}
+                    {{-- Recent --}}
                     @if(auth()->user()->role !== 'technical')
-                        <a href="{{ route('borrow.index') }}"
-                           class="px-4 py-2 rounded-lg {{ request()->routeIs('borrow.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
-                            Borrow
+                        <a href="{{ route('records.recent') }}"
+                        class="px-4 py-2 rounded-lg {{ request()->routeIs('records.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
+                        Recent
                         </a>
                     @endif
+
 
                     {{-- History --}}
                     <a href="{{ route('history.index') }}"
@@ -190,11 +191,12 @@
                 @endif
 
                 @if(auth()->user()->role !== 'technical')
-                    <a href="{{ route('borrow.index') }}"
-                       class="block px-3 py-2 rounded {{ request()->routeIs('borrow.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
-                        Borrow
+                    <a href="{{ route('records.recent') }}"
+                    class="block px-3 py-2 rounded {{ request()->routeIs('records.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">
+                    Recent
                     </a>
                 @endif
+
 
                 <a href="{{ route('history.index') }}"
                    class="block px-3 py-2 rounded {{ request()->routeIs('history.*') ? 'bg-blue-700 font-semibold' : 'hover:bg-blue-500/30' }}">

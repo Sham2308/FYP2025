@@ -433,6 +433,82 @@ public function updateRowByItemOrAsset(array $itemData): bool
     }
 }
 
+public function syncBorrowDetailsStatusFromItems(): int
+{
+    try {
+        $items = $this->getValues('Items!A:H')->getValues();
+        $borrows = $this->getValues('BorrowDetails!A:I')->getValues();
+        if (!$items || !$borrows) return 0;
 
+        $itemStatuses = [];
+        foreach ($items as $i => $row) {
+            if ($i === 0) continue; // skip header
+            $itemId = trim($row[0] ?? '');
+            $status = trim($row[7] ?? ''); // Column H = status
+            if ($itemId) $itemStatuses[$itemId] = $status;
+        }
+
+        $updates = 0;
+        foreach ($borrows as $i => $row) {
+            if ($i === 0) continue;
+            $itemId = trim($row[3] ?? ''); // Column D = Item ID
+            if (!$itemId || !isset($itemStatuses[$itemId])) continue;
+            
+            // Normalize capitalization to match dropdown options
+            $newStatus = ucwords(strtolower(trim($itemStatuses[$itemId]))); 
+
+            $rowIndex  = $i + 1;
+            $cell      = "I{$rowIndex}"; // BorrowDetails!I = Status
+
+            $body = new \Google\Service\Sheets\ValueRange(['values' => [[$newStatus]]]);
+            $this->service->spreadsheets_values->update(
+                $this->spreadsheetId,
+                "BorrowDetails!{$cell}",
+                $body,
+                ['valueInputOption' => 'USER_ENTERED']
+            );
+            $updates++;
+        }
+
+        \Log::info("✅ Synced {$updates} BorrowDetails statuses from Items sheet.");
+        return $updates;
+
+    } catch (\Throwable $e) {
+        \Log::error("❌ syncBorrowDetailsStatusFromItems() failed: ".$e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Update the status cell in the Items sheet by asset_id.
+ */
+public function updateItemStatusByAssetId(string $assetId, string $newStatus): void
+{
+    try {
+        $sheetName = 'Items'; // adjust if your tab name is different
+        $range = $sheetName . '!A:Z';
+        $response = $this->service->spreadsheets_values->get($this->spreadsheetId, $range);
+        $rows = $response->getValues();
+
+        foreach ($rows as $i => $row) {
+            // assuming column B (index 1) = Asset_ID and column H (index 7) = Status
+            if (isset($row[1]) && trim($row[1]) === $assetId) {
+                $rowIndex = $i + 1;
+                $statusColumn = 'H'; // 🔁 change this if your "Status" column is different
+                $this->service->spreadsheets_values->update(
+                    $this->spreadsheetId,
+                    "{$sheetName}!{$statusColumn}{$rowIndex}",
+                    new \Google\Service\Sheets\ValueRange([
+                        'values' => [[ucwords($newStatus)]],
+                    ]),
+                    ['valueInputOption' => 'RAW']
+                );
+                break;
+            }
+        }
+    } catch (\Throwable $e) {
+        \Log::warning("❌ Failed to update sheet status for {$assetId}: " . $e->getMessage());
+    }
+}
 
 }

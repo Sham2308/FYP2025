@@ -379,7 +379,13 @@ class InventoryController extends Controller
         $item->save();
 
         try {
-            $techs = User::where('role', 'technical')->get();
+
+            $gs = app(\App\Services\GoogleSheetService::class);
+            if ($gs && $gs->isReady()) {
+            $gs->updateItemStatusByAssetId($item->asset_id, $item->status);
+            }
+
+            $techs = User::where('role', ['technical', 'admin'])->get();
             Notification::send($techs, new GenericDatabaseNotification(
                 'Item Marked Under Repair',
                 "Item {$item->asset_id} ({$item->name}) marked Under Repair.",
@@ -389,10 +395,63 @@ class InventoryController extends Controller
             Log::warning('Notify (under repair) failed: '.$e->getMessage());
         }
 
+        if (auth()->user()->role === 'technical') {
+        return redirect()
+            ->route('technical.dashboard')
+            ->with('success', 'Item marked as Under Repair.');
+        }
+
         return redirect()
             ->route('nfc.inventory')
             ->with('success', 'Item marked as Under Repair.');
     }
+
+    /**
+ * ADMIN action: mark an item as Available after repair and notify admins.
+ */
+public function markAvailable(string $asset_id)
+{
+    // find item by asset_id
+    $item = Item::where('asset_id', $asset_id)->firstOrFail();
+
+    // Only allow change if item is currently under repair
+    if (strtolower(trim((string) $item->status)) !== 'under repair') {
+        return back()->with('error', 'Only items that are Under Repair can be marked as Available.');
+    }
+
+    // Update status
+    $item->status = 'available';
+    $item->save();
+
+    try {
+
+        $gs = app(\App\Services\GoogleSheetService::class);
+            if ($gs && $gs->isReady()) {
+            $gs->updateItemStatusByAssetId($item->asset_id, $item->status);
+            }
+
+        // Notify admins
+        $admins = User::where('role', ['technical', 'admin'])->get();
+        Notification::send($admins, new GenericDatabaseNotification(
+            'Item Marked as Available',
+            "Item {$item->asset_id} ({$item->name}) is now available for use.",
+            route('technical.dashboard')
+        ));
+    } catch (\Throwable $e) {
+        Log::warning('Notify (available) failed: '.$e->getMessage());
+    }
+
+    if (auth()->user()->role === 'technical') {
+        return redirect()
+            ->route('technical.dashboard')
+            ->with('success', 'Item marked as Available.');
+        }
+
+    return redirect()
+        ->route('nfc.inventory')
+        ->with('success', 'Item marked as Available.');
+}
+
 
     private function normalizeStatus($status)
     {

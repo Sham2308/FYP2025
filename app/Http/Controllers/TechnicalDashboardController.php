@@ -22,7 +22,7 @@ class TechnicalDashboardController extends Controller
             'returned'  => 0, // only comes from sheet
             'stolen'    => 0,
             'available' => 0,
-            'repair'    => 0, // "under repair"
+            'under repair'    => 0, // "under repair"
         ];
 
         if ($csvUrl) {
@@ -49,7 +49,7 @@ class TechnicalDashboardController extends Controller
                             } elseif (in_array($status, ['stolen','stolem','missing/lost','missing','lost'], true)) {
                                 $counts['stolen']++;
                             } elseif (in_array($status, ['under repair','repair','under_repair','maintenance','service','fixing'], true)) {
-                                $counts['repair']++;
+                                $counts['under repair']++;
                             } elseif (in_array($status, ['available','in-stock','in stock','idle','retire'], true)) {
                                 $counts['available']++;
                             }
@@ -74,7 +74,7 @@ class TechnicalDashboardController extends Controller
         $counts['borrowed']  = $dbByStatus['borrowed']     ?? $counts['borrowed'];
         $counts['stolen']    = $dbByStatus['stolen']       ?? $counts['stolen'];
         $counts['available'] = $dbByStatus['available']    ?? $counts['available'];
-        $counts['repair']    = $dbByStatus['under repair'] ?? $counts['repair'];
+        $counts['under repair']  = $dbByStatus['under repair'] ?? ($counts['under repair'] ?? 0);
         // Note: 'returned' remains from the sheet (no such item status)
 
         // ─────────────────────────────────────────────────────────────

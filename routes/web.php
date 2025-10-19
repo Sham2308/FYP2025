@@ -130,16 +130,23 @@ Route::middleware('auth')->group(function () {
     })->name('notify.test');
 });
 
+
+// ── Shared for Admin + Technical ───────────────────────────────────────
+Route::middleware(['auth'])->group(function () {
+    Route::patch('/items/{asset_id}/mark-available', [InventoryController::class, 'markAvailable'])
+        ->where('asset_id', '[A-Za-z0-9-_]+')
+        ->name('items.markAvailable');
+
+    Route::patch('/items/{asset_id}/under-repair', [InventoryController::class, 'markUnderRepair'])
+        ->where('asset_id', '[A-Za-z0-9-_]+')
+        ->name('items.markUnderRepair');
+});
+
 // ── Technical-only ─────────────────────────────────────────────────────
 // Requires 'role' middleware registered in bootstrap/app.php
 Route::middleware(['auth', 'role:technical'])->group(function () {
     Route::get('/technical', [TechnicalDashboardController::class, 'index'])
         ->name('technical.dashboard');
-
-    // Mark item as AVAILABLE (repair finished) — button from "Under Repair" list
-    Route::patch('/items/{asset_id}/mark-available', [ItemStatusController::class, 'markAvailable'])
-        ->where('asset_id', '[A-Za-z0-9\-_]+')
-        ->name('items.markAvailable');
 });
 
 // ── Admin-only ─────────────────────────────────────────────────────────
@@ -162,11 +169,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         ->where('asset_id', '[A-Za-z0-9\-_]+')
         ->name('items.destroy');
 
-    // Mark as under repair
-    Route::patch('/items/{asset_id}/under-repair', [InventoryController::class, 'markUnderRepair'])
-        ->where('asset_id', '[A-Za-z0-9\-_]+')
-        ->name('items.markUnderRepair');
+    // Edit Borrow
+    Route::get('/records/recent', [App\Http\Controllers\RecordsController::class, 'recentBorrows'])->name('records.recent');
 });
+
 
 // Admin → Reports (strictly admins, with prefix + names)
 Route::middleware(['auth', 'role:admin'])

@@ -174,7 +174,7 @@ class BorrowController extends Controller
                 $request->due_date ?? '',            // Return Date
                 now('Asia/Brunei')->format('g:i A'), // Borrowed At
                 '',                                  // Returned At
-                'borrowed',                          // Status
+                ucwords(strtolower('borrowed')),         // ✅ will become "Borrowed"
             ];
 
             // Append the borrow entry to BorrowDetails sheet
@@ -196,6 +196,10 @@ class BorrowController extends Controller
                 'Status'       => $row[8],
             ];
         }
+
+        // ✅ After all borrow updates, sync BorrowDetails statuses from Items sheet
+        // $gs->syncBorrowDetailsStatusFromItems();
+
 
         // ✉️ Send Borrow Confirmation Email
         try {
@@ -268,7 +272,7 @@ class BorrowController extends Controller
             $last['ReturnDate'] ?? '',
             $last['BorrowedAt'] ?? '',
             now('Asia/Brunei')->format('g:i A'),
-            'available',
+            ucwords(strtolower('available')), // ✅ becomes "Available"
         ];
 
         // Append the return entry to BorrowDetails sheet
@@ -279,6 +283,9 @@ class BorrowController extends Controller
 
         // Update the local database to "available" (if needed)
         \App\Models\Item::where('item_id', $itemId)->update(['status' => 'available']);
+
+        // ✅ Sync BorrowDetails statuses to match Items
+        $gs->syncBorrowDetailsStatusFromItems();
 
         // Refresh the recent borrow logs from Google Sheets
         $updated = $this->readRecentFromSheet();
@@ -299,6 +306,8 @@ class BorrowController extends Controller
             ? response()->json(['success' => false, 'message' => 'Failed to mark returned.'], 500)
             : back()->with('error', '❌ Failed to mark returned.');
     }
+    
+
 }
 
 
@@ -319,14 +328,14 @@ class BorrowController extends Controller
         }
 
         // Capitalize status correctly (ensure consistency with your sheet)
-        $sheetStatus = ucfirst(strtolower(trim($status))); // Example: "available" -> "Available"
+        $sheetStatus = ucwords(strtolower(trim($status))); // Example: "available" -> "Available"
         \Log::info("Attempting to update status: {$itemId} → {$sheetStatus}");
 
         foreach ($values as $i => $row) {
             if ($i === 0) continue; // skip header
 
             // Assuming ItemID is in column B (adjust if necessary)
-            $sheetItemId = trim($row[1] ?? ''); // column B = asset_id
+            $sheetItemId = trim($row[0] ?? ''); // column B = asset_id
 
             if ($sheetItemId === $itemId) {
                 $rowNum = $i + 1; // row number for the Google Sheets API
@@ -550,13 +559,14 @@ public function confirmReturnByCard(Request $request)
                 $last['ReturnDate'],
                 $last['BorrowedAt'],
                 now('Asia/Brunei')->format('g:i A'),
-                'available',
+                ucwords(strtolower('available')),
             ];
 
             $gs->appendRow($row, 'BorrowDetails!A:I');
             $this->updateItemStatus($itemId, 'available');
             \App\Models\Item::where('item_id', $itemId)->update(['status' => 'available']);
         }
+        $gs->syncBorrowDetailsStatusFromItems();
 
         return back()->with('success', '✅ All items returned successfully.');
     } catch (\Throwable $e) {

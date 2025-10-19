@@ -191,119 +191,72 @@
                 </table>
             </div>
 
-            <div class="card right">
-                <h3>Borrow Details</h3>
-                <div class="text-center mt-3">
-                    <a href="{{ route('register-user') }}" class="btn btn-primary">Register</a>
-                </div>
-                <h4></h4>
-                @if(session('success'))<div class="alert alert-success">{{ session('success') }}</div>@endif
-                @if(session('error'))<div class="alert alert-danger">{{ session('error') }}</div>@endif
-
-                <form action="{{ route('borrow.publicStore') }}" method="POST">
-                    @csrf
-                    <div class="row">
-                        <input id="card_uid" name="card_uid" type="text" placeholder="Card UID" readonly>
-                        <button type="button" id="scanBtn" class="btn btn-warning">Scan Card</button>
-                        <input id="user_id" name="user_id" type="text" placeholder="Student / Staff ID" readonly required>
-                        <input id="borrower_name" name="borrower_name" type="text" placeholder="Borrower Name" readonly required>
-                    </div>
-
-                    <div id="items-container">
-                        <div class="row item-row">
-                            <div style="display:flex;gap:6px;flex:1;">
-                                <input class="item_uid" name="items[0][item_id]" type="text" placeholder="Item ID" readonly required>
-                                <button type="button" class="btn btn-success scanStickerBtn">Scan Sticker</button>
-                            </div>
-                            <input class="asset_id" name="items[0][asset_id]" type="text" placeholder="Asset ID" readonly>
-                            <input class="name" name="items[0][name]" type="text" placeholder="Item Name" readonly>
-                        </div>
-                    </div>
-
-                    <button type="button" class="btn btn-info" id="addItemBtn" style="margin-top:6px;">+ Add Another Item</button>
-                    <h3></h3>
-                    <div class="row">
-                        <input class="email-field" name="email" type="email" placeholder="Enter Email" required>
-                    </div>
-
-                    <div class="row" style="margin-top:10px;">
-                        <input name="borrow_date" type="date" placeholder="Borrow Date">
-                        <input name="due_date" type="date" placeholder="Return Date">
-                    </div>
-
-                    <div class="actions">
-                        <button type="submit" class="btn btn-success">Save Borrow</button>
-                    </div>
-                </form>
-
-                <h3 style="margin:16px 0 8px;">Recent Borrows</h3>
-                <table id="recent-table">
-                    <thead>
-                        <tr>
-                            <th>Card ID</th>
-                            <th>Borrower Name</th>
-                            <th>User ID</th>
-                            <th>Item ID</th>
-                            <th>Borrow Date</th>
-                            <th>Return Date</th>
-                            <th>Borrowed At</th>
-                            <th>Returned At</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse(($recent ?? []) as $i => $r)
-                        <tr data-uid="{{ $r['ItemID'] ?? ''}}">
-                            <td>{{ $r['CardID'] ?? '-' }}</td>
-                            <td>{{ $r['BorrowerName'] ?? '-' }}</td>
-                            <td>{{ $r['UserID'] ?? '-' }}</td>
-                            <td>{{ $r['ItemID'] ?? '-' }}</td>
-                            <td>{{ $r['BorrowDate'] ?? '-' }}</td>
-                            <td>{{ $r['ReturnDate'] ?? '-' }}</td>
-                            <td>{{ !empty($r['BorrowedAt']) ? date('g:i A', strtotime($r['BorrowedAt'])) : '-' }}</td>
-                            <td>{{ !empty($r['ReturnedAt']) ? date('g:i A', strtotime($r['ReturnedAt'])) : '-' }}</td>
-                            <td>{{ $r['Status'] ?? '-' }}</td>
-                            <td style="min-width:150px;">
-                                {{-- ✅ Return button --}}
-                                @if(($r['Status'] ?? '') !== 'available' && !empty($r['ItemID']))
-                                    <form action="{{ route('borrow.publicReturn', ['uid' => $r['ItemID']]) }}" method="POST" style="display:inline-block;">
-                                        @csrf
-                                        <button class="btn btn-success btn-sm">Returned</button>
-                                    </form>
-                                @else
-                                    <button class="btn btn-success btn-sm" disabled>Returned</button>
-                                @endif
-
-                                {{-- ✅ Delete specific row (by index in Google Sheet) --}}
-                                <form action="{{ route('borrow.delete', ['rowIndex' => $r['RowNumber']]) }}" method="POST" style="display:inline;">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-danger btn-sm delete-btn">Delete</button>
-                                </form>
-                            </td>
-                        </tr>
-                        @empty
-                        <tr><td colspan="10">No borrows yet.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
+            <!-- ✅ RIGHT SIDE -->
+    <div class="card right" style="display:flex; flex-direction:column; gap:20px;">
+        <!-- 🔹 Borrow Form -->
+        <div>
+            <h3>Borrow Details</h3>
+            <div class="text-center mt-3">
+                <a href="{{ route('register-user') }}" class="btn btn-primary">Register</a>
             </div>
+
+            @if(session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
+            @if(session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
+            
+            <h4></h4>
+            <form action="{{ route('borrow.publicStore') }}" method="POST">
+                @csrf
+                <div class="row">
+                    <input id="card_uid" name="card_uid" type="text" placeholder="Card UID" readonly>
+                    <button type="button" id="scanBtn" class="btn btn-warning">Scan Card</button>
+                    <input id="user_id" name="user_id" type="text" placeholder="Student / Staff ID" readonly required>
+                    <input id="borrower_name" name="borrower_name" type="text" placeholder="Borrower Name" readonly required>
+                </div>
+
+                <div id="items-container">
+                    <div class="row item-row">
+                        <div style="display:flex;gap:6px;flex:1;">
+                            <input class="item_uid" name="items[0][item_id]" type="text" placeholder="Item ID" readonly required>
+                            <button type="button" class="btn btn-success scanStickerBtn">Scan Sticker</button>
+                        </div>
+                        <input class="asset_id" name="items[0][asset_id]" type="text" placeholder="Asset ID" readonly>
+                        <input class="name" name="items[0][name]" type="text" placeholder="Item Name" readonly>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-info" id="addItemBtn" style="margin-top:6px;">+ Add Another Item</button>
+
+                <div class="row" style="margin-top:10px;">
+                    <input class="email-field" name="email" type="email" placeholder="Enter Email" required>
+                </div>
+
+                <div class="row" style="margin-top:10px;">
+                    <input name="borrow_date" type="date" placeholder="Borrow Date">
+                    <input name="due_date" type="date" placeholder="Return Date">
+                </div>
+
+                <div class="actions">
+                    <button type="submit" class="btn btn-success">Save Borrow</button>
+                </div>
+            </form>
         </div>
-    </div>
-    <div class="wrap">
-        <div class="card" style="max-width:900px;margin:auto;">
-            <h3 style="margin-bottom:16px;font-size:22px;font-weight:700;">🔄 Return by Card Scan</h3>
+
+        <!-- 🔹 Return Section (just below borrow form) -->
+        <div class="card" style="margin-top:0;">
+            <h3 style="margin-bottom:16px;font-size:20px;font-weight:700;display:flex;align-items:center;gap:8px;">
+                🔄 Return by Card Scan
+            </h3>
 
             <form id="returnForm" method="POST" action="{{ route('return.confirm') }}">
                 @csrf
-
-                <!-- Scan Card Row -->
                 <div class="row" style="align-items:center;gap:10px;margin-bottom:18px;">
                     <div style="flex:1;display:flex;align-items:center;gap:10px;">
                         <input type="text" id="return_card_uid" name="card_uid"
-                            placeholder="Tap your card to scan..."
-                            readonly
+                            placeholder="Tap your card to scan..." readonly
                             style="background:#f3f4f6;color:#374151;font-weight:500;">
                         <button type="button" id="returnScanBtn" class="btn btn-warning" style="white-space:nowrap;">
                             <span style="font-size:13px;font-weight:700;">Scan Card</span>
@@ -311,26 +264,21 @@
                     </div>
                 </div>
 
-                <!-- Borrowed Items Section -->
                 <div id="borrowedItemsSection" class="hidden" style="border-top:1px solid #e5e7eb;padding-top:12px;">
                     <h4 style="margin-bottom:10px;font-size:18px;font-weight:600;color:#111;">📦 Borrowed Items</h4>
                     <div id="borrowedItemsList"
                         style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
-                        <!-- Items will be listed here dynamically -->
                     </div>
-
-                    <div class="actions" style="justify-content:flex-end;">
-                        <button type="submit"
-                            id="returnAllBtn"
-                            class="btn btn-success"
-                            style="padding:10px 18px;font-size:14px;">
-                            ✅ Return All Items
+                    <div class="actions">
+                        <button type="submit" id="returnAllBtn" class="btn btn-success">
+                            Return All Items
                         </button>
                     </div>
                 </div>
             </form>
         </div>
     </div>
+</div>
 
     <script>
     async function fetchUser(cardUid){
@@ -450,7 +398,7 @@
         // 🌀 small delay for user to read alert, then refresh
         setTimeout(() => {
             window.location.reload();
-        }, 400);
+        },200);
 
     } catch (err) {
         console.error("❌ Borrow submit failed:", err);

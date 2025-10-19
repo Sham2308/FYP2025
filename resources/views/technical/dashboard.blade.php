@@ -47,7 +47,7 @@
                   ($counts['returned']  ?? 0) +
                   ($counts['stolen']    ?? 0) +
                   ($counts['available'] ?? 0) +
-                  ($counts['repair']    ?? 0)
+                  ($counts['under repair']    ?? 0)
                 );
                 $pct = fn($n) => (int) round(($n / $total) * 100);
 
@@ -55,7 +55,7 @@
                 $pReturned  = $pct($counts['returned']  ?? 0);
                 $pStolen    = $pct($counts['stolen']    ?? 0);
                 $pAvailable = $pct($counts['available'] ?? 0);
-                $pRepair    = $pct($counts['repair']    ?? 0);
+                $pRepair    = $pct($counts['under repair']    ?? 0);
             @endphp
 
             <div class="flex items-center justify-between mb-4">
@@ -149,7 +149,7 @@
                             <span class="text-purple-600 text-lg"></span>
                             <div class="leading-tight">
                                 <p class="text-xs font-medium text-purple-800">Under Repair</p>
-                                <p class="text-xl font-bold tabular-nums">{{ $counts['repair'] ?? 0 }}</p>
+                                <p class="text-xl font-bold tabular-nums">{{ $counts['under repair'] ?? 0 }}</p>
                             </div>
                         </div>
                         <div class="relative h-10 w-10">
@@ -250,7 +250,7 @@
       const dataReturned = Number("{{ $counts['returned'] ?? 0 }}");
       const dataStolen   = Number("{{ $counts['stolen']   ?? 0 }}");
       const dataAvail    = Number("{{ $counts['available']?? 0 }}");
-      const dataRepair   = Number("{{ $counts['repair']   ?? 0 }}");
+      const dataRepair   = Number("{{ $counts['under repair']   ?? 0 }}");
 
       const values = [dataBorrowed, dataReturned, dataStolen, dataAvail, dataRepair];
       const total = values.reduce((a,b)=>a+b, 0);

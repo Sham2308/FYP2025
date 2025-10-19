@@ -15,12 +15,11 @@ class ItemStatusController extends Controller
      */
     public function markAvailable($asset_id)
     {
-        // Find the item by its asset_id (primary key in your migration)
-        $item = Item::findOrFail($asset_id);
+        $item = Item::where('asset_id', $asset_id)->firstOrFail();
 
-        // Update status
         $item->status = 'available';
         $item->save();
+
 
         // Notify all admins
         $admins = User::where('role', 'admin')->get();
